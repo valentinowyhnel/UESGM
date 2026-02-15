@@ -1,0 +1,62 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { slug: string } }
+) {
+  const slug = params.slug;
+  
+  try {
+    // Find document by slug
+    const document = await prisma.document.findUnique({
+      where: { slug },
+    });
+
+    if (!document) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+
+    // Check if document is published and public
+    if (!document.isPublished || document.visibility !== "PUBLIC") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    // Extract file path from URL
+    const urlParts = document.fileUrl.split('/');
+    const filePath = urlParts.slice(-2).join('/'); // documents/year/filename
+
+    // Generate signed URL for download (valid for 60 seconds)
+    const { data, error } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(filePath, 60);
+
+    if (error) {
+      console.error("Signed URL error:", error);
+      return NextResponse.json({ error: "Download failed" }, { status: 500 });
+    }
+
+    // Increment download counter
+    await prisma.document.update({
+      where: { id: document.id },
+      data: { downloads: { increment: 1 } },
+    });
+
+    // Log download (optional)
+    const userAgent = req.headers.get("user-agent") || "unknown";
+    const clientIP = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
+    console.log(`📥 Download: ${document.title} (${slug}) from ${clientIP} - ${userAgent}`);
+
+    // Redirect to signed URL
+    return NextResponse.redirect(data.signedUrl);
+  } catch (error) {
+    console.error("Download error:", error);
+    return NextResponse.json({ error: "Download error" }, { status: 500 });
+  }
+}

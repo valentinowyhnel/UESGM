@@ -1,0 +1,388 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  role      Role       @default(MEMBER)
+  password  String
+  image     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  documents Document[] @relation("DocumentCreatedBy")
+  events    Event[]    @relation("EventCreatedBy")
+  projects  Project[]  @relation("ProjectCreatedBy")
+
+  @@map("users")
+}
+
+model ExecutiveMember {
+  id        String   @id @default(cuid())
+  name      String
+  position  String
+  email     String?
+  phone     String?
+  photo     String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Antenne {
+  id              String            @id @default(cuid())
+  city            String
+  responsable     String
+  email           String?
+  phone           String?
+  address         String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  AntenneDocument AntenneDocument[]
+  eventAntennes   EventAntenne[]    @relation("AntenneToEventAntenne")
+  events          Event[]           @relation("AntenneToEvent")
+}
+
+model Event {
+  id            String              @id @default(cuid())
+  title         String
+  description   String
+  location      String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  createdById   String
+  endDate       DateTime?
+  imageUrl      String?
+  maxAttendees  Int?
+  slug          String              @unique
+  startDate     DateTime
+  status        EventStatus         @default(DRAFT)
+  category      EventCategory
+  publishedAt   DateTime?
+  createdBy     User                @relation("EventCreatedBy", fields: [createdById], references: [id])
+  eventAntennes EventAntenne[]      @relation("EventToEventAntenne")
+  attendees     EventRegistration[]
+  antennes      Antenne[]           @relation("AntenneToEvent")
+
+  @@index([status, startDate])
+  @@index([publishedAt])
+  @@index([createdById])
+  @@index([category])
+}
+
+model Project {
+  id          String            @id @default(cuid())
+  title       String
+  description String
+  status      ProjectStatus     @default(PLANNED)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  slug        String            @unique
+  createdById String
+  imageUrl    String?
+  isPublished Boolean           @default(false)
+  progress    Int               @default(0)
+  shortDesc   String
+  category    ProjectCategory
+  createdBy   User              @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  auditLogs   ProjectAuditLog[] @relation("ProjectAuditRelation")
+  tags        ProjectTag[]
+
+  @@index([status, category])
+  @@index([createdById])
+  @@index([isPublished])
+}
+
+model Document {
+  id              String             @id @default(cuid())
+  title           String
+  description     String?
+  category        DocumentCategory
+  fileUrl         String
+  fileSize        Int
+  fileName        String
+  mimeType        String
+  downloads       Int                @default(0)
+  isPublished     Boolean            @default(false)
+  slug            String             @unique
+  version         Int                @default(1)
+  visibility      DocumentVisibility @default(PUBLIC)
+  tags            String[]           // Anciennement DocumentTag[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  
+  // Relations
+  createdById     String
+  createdBy       User               @relation("DocumentCreatedBy", fields: [createdById], references: [id])
+  AntenneDocument AntenneDocument[]
+  versions        DocumentVersion[]
+    tags        DocumentTag[]
+
+  // Indexes
+  @@index([category, visibility])
+  @@index([isPublished])
+  @@index([createdById])
+  @@index([category])
+  @@map("documents")
+}
+
+model Partner {
+  id          String      @id @default(cuid())
+  name        String
+  logo        String?
+  website     String?
+  type        PartnerType
+  description String?
+  order       Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Newsletter {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model ContactMessage {
+  id          String        @id @default(cuid())
+  name        String
+  email       String
+  subject     String?
+  message     String
+  country     String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  ip          String?
+  processedAt DateTime?     @map("processed_at")
+  spamScore   Float?        @map("spam_score")
+  status      MessageStatus @default(PENDING)
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
+  userAgent   String?       @map("user_agent")
+}
+
+model Statistics {
+  id            String   @id @default(cuid())
+  totalMembers  Int      @default(0)
+  totalAntennes Int      @default(0)
+  totalEvents   Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+model AntenneDocument {
+  id         String   @id
+  documentId String
+  antenneId  String
+  Antenne    Antenne  @relation(fields: [antenneId], references: [id], onDelete: Cascade)
+  Document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, antenneId])
+}
+
+model EventRegistration {
+  id        String   @id @default(cuid())
+  eventId   String
+  email     String
+  createdAt DateTime @default(now())
+  name      String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, email])
+  @@index([createdAt])
+  @@index([eventId])
+}
+
+model ProjectAuditLog {
+  id         String   @id
+  projectId  String
+  action     String
+  actorId    String?
+  actorEmail String?
+  snapshot   Json?
+  createdAt  DateTime @default(now())
+  Project    Project  @relation("ProjectAuditRelation", fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([projectId])
+}
+
+model EventAntenne {
+  eventId   String
+  antenneId String
+  antenne   Antenne @relation("AntenneToEventAntenne", fields: [antenneId], references: [id], onDelete: Cascade)
+  event     Event   @relation("EventToEventAntenne", fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, antenneId])
+}
+
+model ProjectNew {
+  id          String        @id @default(cuid())
+  title       String
+  slug        String        @unique
+  description String
+  category    String
+  status      ProjectStatus @default(PLANNED)
+  progress    Int           @default(0)
+  createdById String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@map("projects")
+}
+
+
+model EventNew {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  category    String
+  date        DateTime
+  location    String
+  image       String?
+  published   Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([published])
+  @@index([date])
+  @@map("events")
+}
+
+model NewsletterNew {
+  id          String   @id @default(cuid())
+  subject     String
+  content     String
+  sentAt      DateTime @default(now())
+  createdById String?
+
+  @@map("newsletters")
+}
+
+model AntenneNew {
+  id        String   @id @default(cuid())
+  name      String
+  city      String
+  country   String   @default("Gabon")
+  email     String?
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antennes")
+}
+
+model ProjectTag {
+  id        String  @id @default(cuid())
+  name      String
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model DocumentTag {
+  id         String   @id @default(cuid())
+  name       String
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+
+  @@unique([documentId, name])
+  @@index([documentId])
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  fileUrl    String
+  version    Int
+  createdAt  DateTime @default(now())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+
+  @@index([documentId])
+  @@index([version])
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  FAILED
+  SPAM
+}
+
+enum Role {
+  ADMIN
+  SUPER_ADMIN
+  MEMBER
+}
+
+enum DocumentCategory {
+  STATUTS
+  RAPPORTS
+  GUIDES
+  LIVRES
+  ARTICLES
+  PROJETS_SCIENTIFIQUES
+  ADMINISTRATIF
+  ACADEMIQUE
+  JURIDIQUE
+}
+
+enum DocumentVisibility {
+  PUBLIC
+  MEMBERS_ONLY
+  ADMIN_ONLY
+}
+
+enum PartnerType {
+  INSTITUTIONAL
+  PRIVATE
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  SCHEDULED
+}
+
+enum EventCategory {
+  INTEGRATION
+  ACADEMIC
+  SOCIAL
+  CULTURAL
+}
+
+enum ProjectStatus {
+  IN_PROGRESS
+  COMPLETED
+  PLANNED
+  CANCELLED
+}
+
+enum ProjectCategory {
+  EDUCATION
+  SOCIAL
+  HEALTH
+  DIGITAL
+  PARTNERSHIP
+}
+
+model DocumentTag {
+  id         String   @id @default(cuid())
+  name       String
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+}

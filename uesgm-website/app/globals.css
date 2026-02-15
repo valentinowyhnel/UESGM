@@ -1,0 +1,348 @@
+/* Import des directives Tailwind */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Styles de base */
+:root {
+  /* Couleurs */
+  --background: 0 0% 100%;
+  --foreground: 220 32% 15%;
+
+  /* Sidebar */
+  --sidebar: 210 40% 98%;
+  --sidebar-foreground: 220 32% 15%;
+  --sidebar-primary: 214 94% 27%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 210 40% 96.1%;
+  --sidebar-accent-foreground: 214 94% 27%;
+  --sidebar-border: 214.3 31.8% 91.4%;
+  --sidebar-ring: 214 94% 27%;
+
+  /* Autres couleurs */
+  --border: 214.3 31.8% 91.4%;
+  --input: 0 0% 100%;
+  --ring: 214 94% 27%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 220 8.9% 46.1%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 220 32% 15%;
+  
+  /* Couleurs principales - Contraste élevé */
+  --primary: 0 0% 100%;  /* Blanc pur pour un meilleur contraste */
+  --primary-foreground: 0 0% 15%;  /* Presque noir pour le texte */
+  --primary-light: 0 0% 98%;
+  --primary-dark: 0 0% 95%;
+  
+  /* Couleurs secondaires - Or avec meilleur contraste */
+  --secondary: 38 92% 50%;  /* Or plus foncé pour un meilleur contraste */
+  --secondary-foreground: 0 0% 100%;
+  
+  /* Couleurs d'état */
+  --destructive: 0 72% 51%;  /* Rouge plus foncé pour un meilleur contraste */
+  --destructive-foreground: 0 0% 100%;
+  
+  /* Nuances d'or améliorées avec meilleur contraste */
+  --gold: 38 92% 50%;      /* Or principal plus foncé */
+  --gold-light: 40 100% 60%;
+  --gold-dark: 35 100% 35%;  /* Or très foncé pour le texte */
+  --gold-pale: 45 100% 95%;  /* Or très clair pour les fonds */
+  --gold-button-hover: 38 92% 45%;  /* Couleur de survol des boutons */
+  
+  /* Autres */
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 32% 15%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 32% 15%;
+  
+  /* Rayons de bordure */
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+  --radius-2xl: calc(var(--radius) + 0.5rem);
+  --radius-3xl: calc(var(--radius) + 0.75rem);
+  --radius-4xl: calc(var(--radius) + 1rem);
+  --radius-full: 9999px;
+}
+
+/* Mode sombre */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 220 32% 8%;
+    --foreground: 0 0% 95%;
+    
+    /* Sidebar sombre */
+    --sidebar: 220 32% 12%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 214 94% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-border: 220 32% 20%;
+    --sidebar-ring: 214 94% 40%;
+    
+    /* Autres couleurs sombres */
+    --popover: 220 32% 10%;
+    --popover-foreground: 0 0% 95%;
+    --card: 220 32% 10%;
+    --card-foreground: 0 0% 95%;
+    
+    /* Couleurs principales - Bleu foncé */
+    --primary: 214 94% 35%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 214 94% 15%;
+    --primary-dark: 214 94% 45%;
+    
+    /* Couleurs secondaires - Or */
+    --secondary: 45 100% 50%;
+    --secondary-foreground: 0 0% 100%;
+    
+    /* Nuances d'or */
+    --gold: 45 100% 50%;
+    --gold-light: 45 100% 60%;
+    --gold-dark: 38 92% 45%;
+  }
+}
+
+/* Styles de base */
+* {
+  border-color: hsl(var(--border));
+  outline-color: hsl(var(--ring) / 0.5);
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Composants personnalisés */
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.btn-primary:hover {
+  background-color: hsl(var(--primary-dark));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.btn-secondary {
+  background-color: hsl(var(--gold));
+  color: hsl(var(--secondary-foreground));
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.btn-secondary:hover {
+  background-color: hsl(var(--gold-dark));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+/* Utilitaires personnalisés */
+.text-balance {
+  /* Solution la plus largement supportée */
+  word-break: break-word;
+  overflow-wrap: break-word;
+  /* Support pour la césure des mots */
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
+  hyphens: auto;
+  
+  /* Amélioration de la lisibilité */
+  line-height: 1.5;
+  text-align: justify;
+}
+
+/* Support pour les navigateurs modernes avec @supports */
+@supports (text-wrap: balance) {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Classes utilitaires pour les couleurs */
+.bg-gold {
+  background-color: hsl(var(--gold));
+  color: hsl(var(--foreground));
+}
+
+.text-gold {
+  color: hsl(var(--gold));
+}
+
+/* Styles pour les cartes avec meilleur contraste et accessibilité */
+.card {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border-radius: 0.75rem;
+  border: 2px solid hsl(var(--gold) / 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 2rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold-light)));
+  opacity: 0.8;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border-color: hsl(var(--gold) / 0.5);
+}
+
+.card:focus-within {
+  outline: 3px solid hsl(var(--gold) / 0.5);
+  outline-offset: 2px;
+}
+
+/* Amélioration de la lisibilité du texte */
+p, li, span, div {
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+/* Amélioration des liens */
+a {
+  color: hsl(var(--gold-dark));
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+  text-decoration-color: hsl(var(--gold) / 0.4);
+}
+
+a:hover {
+  color: hsl(var(--gold));
+  text-decoration-color: currentColor;
+}
+
+/* Amélioration des boutons */
+button, .btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+}
+
+button:focus-visible, .btn:focus-visible {
+  outline: 3px solid hsl(var(--gold) / 0.5);
+  outline-offset: 2px;
+}
+
+/* Amélioration des champs de formulaire */
+input, textarea, select {
+  border: 2px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  background-color: white;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: hsl(var(--gold));
+  box-shadow: 0 0 0 3px hsl(var(--gold) / 0.2);
+  outline: none;
+}
+
+/* Amélioration des listes */
+ul, ol {
+  padding-left: 1.5rem;
+}
+
+li {
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+li::marker {
+  color: hsl(var(--gold));
+}
+
+/* Amélioration des citations */
+blockquote {
+  border-left: 4px solid hsl(var(--gold));
+  padding-left: 1.5rem;
+  margin-left: 0;
+  font-style: italic;
+  color: hsl(var(--primary-foreground) / 0.9);
+}
+
+/* Amélioration des tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+}
+
+th, td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+th {
+  background-color: hsl(var(--gold-pale));
+  font-weight: 600;
+  color: hsl(var(--gold-dark));
+}
+
+tr:hover {
+  background-color: hsl(var(--gold-pale) / 0.5);
+}
+
+/* Styles pour les formulaires */
+.input {
+  background-color: hsl(var(--input));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+
+/* Classe utilitaire pour les champs cachés (honeypot) */
+.honeypot {
+  display: none;
+}

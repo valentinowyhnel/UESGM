@@ -1,0 +1,172 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+
+// Interface pour les événements publics
+interface PublicEvent {
+  id: string
+  title: string
+  slug: string
+  description: string
+  location: string
+  imageUrl?: string | null
+  category: 'INTEGRATION' | 'ACADEMIC' | 'SOCIAL' | 'CULTURAL'
+  status: 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' | 'ARCHIVED'
+  startDate: Date
+  endDate?: Date | null
+  maxAttendees?: number | null
+  createdAt: Date
+  updatedAt: Date
+  publishedAt?: Date | null
+  createdBy: {
+    id: string
+    name: string
+    email: string
+  }
+  _count?: {
+    attendees: number
+  }
+}
+
+// Schéma de validation pour les requêtes publiques
+const PublicEventQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  per: z.coerce.number().min(1).max(50).default(10),
+  category: z.enum(['INTEGRATION', 'ACADEMIC', 'SOCIAL', 'CULTURAL']).optional(),
+  search: z.string().optional(),
+  status: z.enum(['upcoming', 'past', 'all']).default('upcoming')
+})
+
+// Service pour les événements publics
+const publicEventService = {
+  getAll: async (filters?: {
+    category?: string
+    search?: string
+    status?: string
+    page?: number
+    per?: number
+  }) => {
+    const now = new Date()
+    
+    // Construction de la clause WHERE - uniquement les événements publiés
+    const where: any = {
+      status: 'PUBLISHED'
+    }
+
+    // Filtrage par catégorie
+    if (filters?.category) {
+      where.category = filters.category
+    }
+
+    // Recherche texte
+    if (filters?.search) {
+      where.OR = [
+        { title: { contains: filters.search, mode: 'insensitive' } },
+        { description: { contains: filters.search, mode: 'insensitive' } },
+        { location: { contains: filters.search, mode: 'insensitive' } }
+      ]
+    }
+
+    // Filtrage par statut temporel
+    if (filters?.status === 'upcoming') {
+      where.startDate = { gte: now }
+    } else if (filters?.status === 'past') {
+      where.startDate = { lt: now }
+    }
+    // 'all' ne filtre pas sur les dates (juste PUBLISHED)
+
+    const [events, total] = await Promise.all([
+      prisma.event.findMany({
+        where,
+        include: {
+          createdBy: {
+            select: { id: true, name: true, email: true }
+          },
+          _count: {
+            select: { attendees: true }
+          }
+        },
+        orderBy: [
+          { startDate: 'asc' },
+          { createdAt: 'desc' }
+        ],
+        skip: ((filters?.page || 1) - 1) * (filters?.per || 10),
+        take: filters?.per || 10
+      }),
+      prisma.event.count({ where })
+    ])
+
+    return {
+      data: events,
+      pagination: {
+        page: filters?.page || 1,
+        totalPages: Math.ceil(total / (filters?.per || 10)),
+        totalItems: total,
+        hasNext: ((filters?.page || 1) * (filters?.per || 10)) < total,
+        hasPrev: (filters?.page || 1) > 1,
+        per: filters?.per || 10
+      }
+    }
+  },
+
+  getBySlug: async (slug: string) => {
+    const event = await prisma.event.findFirst({
+      where: {
+        slug,
+        status: 'PUBLISHED'
+      },
+      include: {
+        createdBy: {
+          select: { id: true, name: true, email: true }
+        },
+        _count: {
+          select: { attendees: true }
+        }
+      }
+    })
+
+    return event
+  }
+}
+
+// GET - Récupérer les événements publics
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    
+    // Validation des paramètres
+    const query = PublicEventQuerySchema.parse({
+      page: searchParams.get('page'),
+      per: searchParams.get('per'),
+      category: searchParams.get('category'),
+      search: searchParams.get('search'),
+      status: searchParams.get('status')
+    })
+
+    const result = await publicEventService.getAll(query)
+
+    return NextResponse.json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination
+    }, {
+      // Cache avec revalidation automatique
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
+        'CDN-Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30'
+      }
+    })
+  } catch (error: any) {
+    console.error('❌ Erreur GET /api/events/public:', error)
+    if (error.name === 'ZodError') {
+      return NextResponse.json(
+        { error: 'Paramètres invalides', details: error.issues },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
+  }
+}

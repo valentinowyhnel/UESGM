@@ -1,0 +1,268 @@
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+
+// Schéma de validation pour la recherche
+const SearchSchema = z.object({
+  query: z.string().min(2).max(100),
+  type: z.enum(['all', 'events', 'projects', 'documents', 'partners', 'antennes', 'executive-members']).default('all'),
+  page: z.coerce.number().min(1).default(1),
+  per: z.coerce.number().min(1).max(20).default(10),
+  filters: z.object({
+    category: z.string().optional(),
+    status: z.string().optional(),
+    published: z.string().optional(),
+    city: z.string().optional(),
+  }).optional(),
+})
+
+// GET - Recherche globale
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const searchQuery = SearchSchema.parse(Object.fromEntries(searchParams))
+
+    const { query, type, page, per, filters } = searchQuery
+    const skip = (page - 1) * per
+
+    const results: any = {
+      events: [],
+      projects: [],
+      documents: [],
+      partners: [],
+      antennes: [],
+      executiveMembers: [],
+      total: 0,
+    }
+
+    // Recherche dans les événements
+    if (type === 'all' || type === 'events') {
+      const eventWhere: any = {
+        OR: [
+          { title: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+          { location: { contains: query, mode: 'insensitive' } },
+          { category: { contains: query, mode: 'insensitive' } },
+        ]
+      }
+
+      if (filters?.category) eventWhere.category = filters.category
+      if (filters?.published !== undefined) eventWhere.published = filters.published === 'true'
+
+      const events = await prisma.event.findMany({
+        where: eventWhere,
+        orderBy: { createdAt: 'desc' },
+        skip: type === 'events' ? skip : 0,
+        take: type === 'events' ? per : 5,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          startDate: true,
+          location: true,
+          category: true,
+          publishedAt: true,
+          slug: true,
+        }
+      })
+
+      results.events = events
+      results.total += events.length
+    }
+
+    // Recherche dans les projets
+    if (type === 'all' || type === 'projects') {
+      const projectWhere: any = {
+        OR: [
+          { title: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+          { category: { contains: query, mode: 'insensitive' } },
+          { city: { contains: query, mode: 'insensitive' } },
+          { tags: { hasSome: [query] } },
+        ]
+      }
+
+      if (filters?.category) projectWhere.category = filters.category
+      if (filters?.status) projectWhere.status = filters.status
+      if (filters?.published !== undefined) projectWhere.published = filters.published === 'true'
+
+      const projects = await prisma.project.findMany({
+        where: projectWhere,
+        orderBy: { createdAt: 'desc' },
+        skip: type === 'projects' ? skip : 0,
+        take: type === 'projects' ? per : 5,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          category: true,
+          status: true,
+          isPublished: true,
+          slug: true,
+        }
+      })
+
+      results.projects = projects
+      results.total += projects.length
+    }
+
+    // Recherche dans les documents
+    if (type === 'all' || type === 'documents') {
+      const documentWhere: any = {
+        OR: [
+          { title: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+          { tags: { hasSome: [query] } },
+        ]
+      }
+
+      if (filters?.category) documentWhere.category = filters.category
+      if (filters?.published !== undefined) documentWhere.published = filters.published === 'true'
+
+      const documents = await prisma.document.findMany({
+        where: documentWhere,
+        orderBy: { createdAt: 'desc' },
+        skip: type === 'documents' ? skip : 0,
+        take: type === 'documents' ? per : 5,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          category: true,
+          isPublished: true,
+          mimeType: true,
+          fileName: true,
+          fileUrl: true,
+        }
+      })
+
+      results.documents = documents
+      results.total += documents.length
+    }
+
+    // Recherche dans les partenaires
+    if (type === 'all' || type === 'partners') {
+      const partnerWhere: any = {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+          { type: { contains: query, mode: 'insensitive' } },
+        ]
+      }
+
+      if (filters?.category) partnerWhere.type = filters.category
+
+      const partners = await prisma.partner.findMany({
+        where: partnerWhere,
+        orderBy: { order: 'asc' },
+        skip: type === 'partners' ? skip : 0,
+        take: type === 'partners' ? per : 5,
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          description: true,
+          logo: true,
+          website: true,
+        }
+      })
+
+      results.partners = partners
+      results.total += partners.length
+    }
+
+    // Recherche dans les antennes
+    if (type === 'all' || type === 'antennes') {
+      const antenneWhere: any = {
+        OR: [
+          { city: { contains: query, mode: 'insensitive' } },
+          { responsible: { contains: query, mode: 'insensitive' } },
+          { address: { contains: query, mode: 'insensitive' } },
+        ]
+      }
+
+      if (filters?.city) antenneWhere.city = filters.city
+
+      const antennes = await prisma.antenne.findMany({
+        where: antenneWhere,
+        orderBy: { city: 'asc' },
+        skip: type === 'antennes' ? skip : 0,
+        take: type === 'antennes' ? per : 5,
+        select: {
+          id: true,
+          city: true,
+          responsable: true,
+          email: true,
+          phone: true,
+          address: true,
+        }
+      })
+
+      results.antennes = antennes
+      results.total += antennes.length
+    }
+
+    // Recherche dans les membres du bureau exécutif
+    if (type === 'all' || type === 'executive-members') {
+      const memberWhere: any = {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { position: { contains: query, mode: 'insensitive' } },
+        ]
+      }
+
+      const members = await prisma.executiveMember.findMany({
+        where: memberWhere,
+        orderBy: { order: 'asc' },
+        skip: type === 'executive-members' ? skip : 0,
+        take: type === 'executive-members' ? per : 5,
+        select: {
+          id: true,
+          name: true,
+          position: true,
+          email: true,
+          phone: true,
+          photo: true,
+        }
+      })
+
+      results.executiveMembers = members
+      results.total += members.length
+    }
+
+    // Pagination pour les recherches spécifiques
+    const pagination = type === 'all' ? {} : {
+      page,
+      per,
+      total: results.total,
+      pages: Math.ceil(results.total / per),
+      hasNext: page * per < results.total,
+    }
+
+    return NextResponse.json({
+      success: true,
+      query,
+      type,
+      filters,
+      results,
+      pagination,
+      meta: {
+        totalResults: results.total,
+        searchTime: Date.now(),
+        types: Object.keys(results).filter(key => results[key].length > 0),
+      }
+    })
+  } catch (error: any) {
+    console.error('❌ Erreur GET /api/search:', error)
+    if (error.name === 'ZodError') {
+      return NextResponse.json(
+        { error: 'Paramètres de recherche invalides', details: error.errors },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
+  }
+}

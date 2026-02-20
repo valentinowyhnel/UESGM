@@ -61,29 +61,37 @@ export async function requireAdmin(req: NextRequest): Promise<{ user: AdminUser 
     // Vérifier la session NextAuth
     const session = await getServerSession(authOptions)
     
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'Non authentifié' },
         { status: 401 }
       )
     }
 
-    // Vérifier le rôle admin depuis la session
-    const userRole = (session.user as any)?.role
-    const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+    // Vérifier le rôle admin en base de données
+    const { PrismaClient } = await import('@prisma/client')
+    const prisma = new PrismaClient()
     
-    if (!isAdmin) {
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, role: true, name: true }
+    })
+    
+    if (!dbUser || (dbUser.role !== 'ADMIN' && dbUser.role !== 'SUPER_ADMIN')) {
       return NextResponse.json(
-        { error: 'Accès non autorisé - Rôle insuffisant' },
+        { error: 'Accès non autorisé - Rôle admin requis' },
         { status: 403 }
       )
     }
 
+    // Déterminer le rôle
+    const role: AdminRole = dbUser.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN'
+
     const user: AdminUser = {
-      id: session.user.id || 'unknown',
-      email: session.user.email || 'unknown@example.com',
-      name: session.user.name || 'Admin',
-      role: userRole as AdminRole
+      id: dbUser.id,
+      email: session.user.email!,
+      name: dbUser.name || session.user.name || 'Admin',
+      role
     }
 
     return { user }

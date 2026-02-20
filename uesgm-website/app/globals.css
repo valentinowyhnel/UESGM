@@ -5,37 +5,18 @@
 
 /* Styles de base */
 :root {
-  /* Couleurs */
+  /* Couleurs - Bleu et Dorado */
   --background: 0 0% 100%;
   --foreground: 220 32% 15%;
 
-  /* Sidebar */
-  --sidebar: 210 40% 98%;
-  --sidebar-foreground: 220 32% 15%;
-  --sidebar-primary: 214 94% 27%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 210 40% 96.1%;
-  --sidebar-accent-foreground: 214 94% 27%;
-  --sidebar-border: 214.3 31.8% 91.4%;
-  --sidebar-ring: 214 94% 27%;
-
-  /* Autres couleurs */
-  --border: 214.3 31.8% 91.4%;
-  --input: 0 0% 100%;
-  --ring: 214 94% 27%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 220 8.9% 46.1%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 220 32% 15%;
+  /* Couleur principale - Bleu */
+  --primary: 214 94% 27%;  /* Bleu foncé */
+  --primary-foreground: 0 0% 100%;
+  --primary-light: 214 94% 45%;
+  --primary-dark: 214 94% 15%;
   
-  /* Couleurs principales - Contraste élevé */
-  --primary: 0 0% 100%;  /* Blanc pur pour un meilleur contraste */
-  --primary-foreground: 0 0% 15%;  /* Presque noir pour le texte */
-  --primary-light: 0 0% 98%;
-  --primary-dark: 0 0% 95%;
-  
-  /* Couleurs secondaires - Or avec meilleur contraste */
-  --secondary: 38 92% 50%;  /* Or plus foncé pour un meilleur contraste */
+  /* Couleur secondaire - Dorado */
+  --secondary: 38 92% 50%;  /* Dorado plus foncé */
   --secondary-foreground: 0 0% 100%;
   
   /* Couleurs d'état */
@@ -114,6 +95,12 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1;
+  font-family: var(--font-brush), cursive;
+}
+
+/* Classe pour la police Brush Script */
+.font-brush {
+  font-family: var(--font-brush), cursive;
 }
 
 /* Composants personnalisés */

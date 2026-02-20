@@ -7,7 +7,7 @@ import { z } from 'zod'
 // Schéma de validation pour la mise à jour
 const UpdateEventSchema = z.object({
   title: z.string().min(5).max(200).optional(),
-  description: z.string().min(10).max(2000).optional(),
+  description: z.string().min(5).max(2000).optional(),
   date: z.string().datetime().optional(),
   location: z.string().max(200).optional(),
   category: z.enum(['INTEGRATION', 'ACADEMIC', 'SOCIAL', 'CULTURAL', 'SPORT', 'OTHER']).optional(),

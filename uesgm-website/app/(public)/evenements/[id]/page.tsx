@@ -15,10 +15,14 @@ async function getEvent(id: string) {
       where: { id },
       include: {
         antennes: {
-          select: { id: true, city: true, responsable: true }
+          include: {
+            antenne: {
+              select: { id: true, city: true }
+            }
+          }
         },
         _count: {
-          select: { attendees: true }
+          select: { registrations: true }
         }
       }
     })
@@ -111,9 +115,9 @@ export default async function EventDetailPage({
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {event.antennes.map((antenne) => (
-                    <Badge key={antenne.id} variant="secondary">
-                      {antenne.city}
+                  {event.antennes.map((eventAntenne) => (
+                    <Badge key={eventAntenne.id} variant="secondary">
+                      {eventAntenne.antenne.city}
                     </Badge>
                   ))}
                 </div>
@@ -174,7 +178,7 @@ export default async function EventDetailPage({
                 <div>
                   <p className="font-semibold">Inscriptions</p>
                   <p className="text-sm text-muted-foreground">
-                    {event._count.attendees} personne{event._count.attendees > 1 ? 's' : ''} inscrite{event._count.attendees > 1 ? 's' : ''}
+                    {event._count.registrations} personne{event._count.registrations > 1 ? 's' : ''} inscrite{event._count.registrations > 1 ? 's' : ''}
                   </p>
                 </div>
               </div>

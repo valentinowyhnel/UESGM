@@ -15,7 +15,10 @@ export async function GET(req: Request) {
                 },
                 orderBy: { city: 'asc' }
             })
-            return NextResponse.json(allAntennes)
+            // Return as array with name property (EventForm expects { id, name })
+            return NextResponse.json(
+                allAntennes.map(a => ({ id: a.id, name: a.city }))
+            )
         }
 
         // 1. Rechercher par nom d'utilisateur

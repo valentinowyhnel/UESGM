@@ -1,6 +1,12 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { NextResponse } from "next/server"
+import { ZodError } from "zod"
+import { prisma } from "@/lib/prisma"
+
+// ============================================
+// TYPES ET INTERFACES
+// ============================================
 
 // Rôles autorisés pour les actions critiques
 export const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN'] as const
@@ -16,6 +22,19 @@ export type AdminAction =
   | 'suspend'
   | 'archive'
   | 'upload'
+
+// Type pour les réponses API standardisées
+export interface ApiResponse<T = any> {
+  success: boolean
+  data?: T
+  error?: string
+  message?: string
+  timestamp?: string
+}
+
+// ============================================
+// CONFIGURATION DE SÉCURITÉ
+// ============================================
 
 // Types MIME autorisés
 type AllowedMimeType = 
@@ -40,7 +59,6 @@ type UploadLimits = {
 };
 
 export const UPLOAD_LIMITS: UploadLimits = {
-  // Documents (PDF, Word, Excel, PowerPoint)
   documents: {
     maxSize: 10 * 1024 * 1024, // 10MB
     allowedTypes: [
@@ -53,7 +71,6 @@ export const UPLOAD_LIMITS: UploadLimits = {
       'application/vnd.openxmlformats-officedocument.presentationml.presentation'
     ]
   },
-  // Images (JPEG, PNG, WebP)
   images: {
     maxSize: 5 * 1024 * 1024, // 5MB
     allowedTypes: [
@@ -62,7 +79,6 @@ export const UPLOAD_LIMITS: UploadLimits = {
       'image/webp'
     ]
   },
-  // Vidéos (MP4 limité)
   videos: {
     maxSize: 50 * 1024 * 1024, // 50MB
     allowedTypes: [
@@ -71,20 +87,113 @@ export const UPLOAD_LIMITS: UploadLimits = {
   }
 }
 
-// Vérification des permissions côté serveur
+// ============================================
+// FONCTIONS DE SÉCURITÉ
+// ============================================
+
+/**
+ * Sanitize input string to prevent XSS
+ */
+export function sanitizeInput(input: string): string {
+  if (!input) return ''
+  return input
+    .replace(/[<>]/g, '') // Remove < and >
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+=/gi, '')
+    .trim()
+}
+
+/**
+ * Validate and sanitize object fields
+ */
+export function sanitizeObject<T extends Record<string, any>>(
+  obj: T, 
+  fields: (keyof T)[]
+): Partial<T> {
+  const sanitized: Partial<T> = {}
+  
+  for (const field of fields) {
+    if (typeof obj[field] === 'string') {
+      (sanitized as any)[field] = sanitizeInput(obj[field])
+    } else if (obj[field] !== undefined) {
+      (sanitized as any)[field] = obj[field]
+    }
+  }
+  
+  return sanitized
+}
+
+/**
+ * Generate request ID for tracing
+ */
+export function generateRequestId(): string {
+  return `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+}
+
+/**
+ * Create standardized error response
+ */
+export function createErrorResponse(
+  error: string, 
+  status: number = 400,
+  requestId?: string
+): NextResponse<ApiResponse> {
+  return NextResponse.json(
+    {
+      success: false,
+      error,
+      timestamp: new Date().toISOString(),
+      ...(requestId && { requestId })
+    },
+    { status }
+  )
+}
+
+/**
+ * Create standardized success response
+ */
+export function createSuccessResponse<T>(
+  data: T,
+  message?: string,
+  requestId?: string
+): NextResponse<ApiResponse<T>> {
+  return NextResponse.json(
+    {
+      success: true,
+      data,
+      message,
+      timestamp: new Date().toISOString(),
+      ...(requestId && { requestId })
+    },
+    { status: 200 }
+  )
+}
+
+// ============================================
+// AUTHENTIFICATION ET AUTORISATION
+// ============================================
+
+/**
+ * Vérification des permissions admin
+ */
 export async function requireAdminRole(action?: AdminAction) {
   const session = await getServerSession(authOptions)
   
-  if (!session) {
+  if (!session?.user?.email) {
     return {
       success: false,
       error: "Non authentifié",
-      redirectTo: "/login"
+      redirectTo: "/portal"
     }
   }
 
-  const userRole = (session.user as any)?.role
-  if (!userRole || !ADMIN_ROLES.includes(userRole)) {
+  // Vérifier le rôle admin en base de données
+  const dbUser = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true, role: true, name: true }
+  })
+  
+  if (!dbUser || (dbUser.role !== 'ADMIN' && dbUser.role !== 'SUPER_ADMIN')) {
     return {
       success: false,
       error: "Permissions insuffisantes",
@@ -93,7 +202,7 @@ export async function requireAdminRole(action?: AdminAction) {
   }
 
   // Vérifications supplémentaires pour les actions critiques
-  if (action === 'delete' && userRole !== 'SUPER_ADMIN') {
+  if (action === 'delete' && dbUser.role !== 'SUPER_ADMIN') {
     return {
       success: false,
       error: "Seul un super-admin peut supprimer",
@@ -101,13 +210,24 @@ export async function requireAdminRole(action?: AdminAction) {
     }
   }
 
+  // Retourner l'utilisateur avec le bon ID de la base de données
   return {
     success: true,
-    user: session.user
+    user: {
+      ...session.user,
+      id: dbUser.id,
+      name: dbUser.name || session.user.name
+    }
   }
 }
 
-// Validation des fichiers uploadés
+// ============================================
+// VALIDATION DES FICHIERS
+// ============================================
+
+/**
+ * Validation des fichiers uploadés
+ */
 export function validateUploadedFile(file: File, category: keyof typeof UPLOAD_LIMITS) {
   const limits = UPLOAD_LIMITS[category]
   
@@ -141,37 +261,109 @@ export function validateUploadedFile(file: File, category: keyof typeof UPLOAD_L
   }
 }
 
-// Middleware pour les routes API
+// ============================================
+// MIDDLEWARE API AVANCÉ
+// ============================================
+
 type ApiHandler = (req: Request, ...args: unknown[]) => Promise<Response>;
 
+/**
+ * Middleware principal d'authentification et sécurité
+ */
 export function withAdminAuth(handler: ApiHandler) {
   return async (req: Request, ...args: unknown[]) => {
+    const requestId = generateRequestId()
+    const startTime = Date.now()
+    
+    // Logging de la requête
+    console.log(`[${requestId}] ${req.method} ${req.url} - Started`)
+
     // Vérification des permissions
     const auth = await requireAdminRole()
     if (!auth.success) {
-      return NextResponse.json(
-        { error: auth.error },
-        { status: auth.redirectTo === "/login" ? 401 : 403 }
-      )
+      console.log(`[${requestId}] Auth failed: ${auth.error}`)
+      return createErrorResponse(auth.error, auth.redirectTo === "/portal" ? 401 : 403, requestId)
     }
 
     // Ajout de l'utilisateur à la requête
-    const reqWithUser = req as Request & { user: NonNullable<typeof auth.user> }
-    reqWithUser.user = auth.user!
+    const reqWithUser = req as Request & { user: any; requestId: string }
+    reqWithUser.user = auth.user
+    reqWithUser.requestId = requestId
 
     try {
-      return await handler(req, ...args)
+      const response = await handler(req, ...args)
+      const duration = Date.now() - startTime
+      
+      console.log(`[${requestId}] Completed in ${duration}ms - Status: ${response.status}`)
+      
+      return response
     } catch (error: any) {
-      console.error('Admin API Error:', error)
-      return NextResponse.json(
-        { error: "Erreur interne du serveur" },
-        { status: 500 }
+      const duration = Date.now() - startTime
+      console.error(`[${requestId}] Error after ${duration}ms:`, error)
+      
+      // Handle Zod validation errors
+      if (error instanceof ZodError) {
+        const validationErrors = (error as any).issues || []
+        const messages = validationErrors.map((e: any) => e.message).join(', ')
+        return createErrorResponse(
+          `Validation error: ${messages}`,
+          400,
+          requestId
+        )
+      }
+      
+      return createErrorResponse(
+        error.message || "Erreur interne du serveur",
+        500,
+        requestId
       )
     }
   }
 }
 
-// Log des actions admin pour audit
+/**
+ * Middleware pour les actions critiques (suppression)
+ */
+export function withCriticalAction(handler: ApiHandler) {
+  return withAdminAuth(async (req: Request, ...args: unknown[]) => {
+    const auth = await requireAdminRole('delete')
+    if (!auth.success) {
+      return createErrorResponse(auth.error, 403)
+    }
+    return handler(req, ...args)
+  })
+}
+
+/**
+ * Middleware pour valider le contenu JSON
+ */
+export function withJsonBody<T>(handler: (req: Request, body: T, ...args: any[]) => Promise<Response>) {
+  return async (req: Request, ...args: unknown[]) => {
+    const contentType = req.headers.get('content-type')
+    
+    if (!contentType || !contentType.includes('application/json')) {
+      return createErrorResponse("Content-Type must be application/json", 415)
+    }
+
+    try {
+      const body = await req.json()
+      return handler(req, body, ...args)
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        return createErrorResponse("Invalid JSON body", 400)
+      }
+      throw error
+    }
+  }
+}
+
+// ============================================
+// LOGGING D'AUDIT
+// ============================================
+
+/**
+ * Log des actions admin pour audit
+ */
 export async function logAdminAction(
   userId: string,
   action: AdminAction,
@@ -179,18 +371,35 @@ export async function logAdminAction(
   resourceId?: string,
   details?: any
 ) {
+  const timestamp = new Date().toISOString()
+  const logEntry = {
+    timestamp,
+    userId,
+    action,
+    resource,
+    resourceId,
+    details
+  }
+  
   try {
-    // TODO: Implémenter un système de logging en base de données
-    console.log(`[ADMIN AUDIT] User: ${userId}, Action: ${action}, Resource: ${resource}${resourceId ? `, ID: ${resourceId}` : ''}`, details)
+    // Log en console pour le développement
+    console.log(`[ADMIN AUDIT]`, JSON.stringify(logEntry))
     
-    // Pour l'instant, on log en console
-    // En production, utiliser une table d'audit ou un service externe
+    // TODO: Implémenter un système de logging en base de données
+    // await prisma.adminAuditLog.create({ data: logEntry })
+    
   } catch (error) {
     console.error('Failed to log admin action:', error)
   }
 }
 
-// Validation des données de formulaire
+// ============================================
+// VALIDATION DES DONNÉES
+// ============================================
+
+/**
+ * Validation des données de formulaire
+ */
 export function validateAdminData(data: any, resource: string) {
   const errors: string[] = []
 
@@ -241,5 +450,27 @@ export function validateAdminData(data: any, resource: string) {
   return {
     isValid: errors.length === 0,
     errors
+  }
+}
+
+/**
+ * Validate UUID format
+ */
+export function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(uuid)
+}
+
+/**
+ * Validate pagination params
+ */
+export function validatePagination(params: URLSearchParams) {
+  const page = parseInt(params.get('page') || '1')
+  const limit = parseInt(params.get('limit') || '10')
+  
+  return {
+    page: Math.max(1, page),
+    limit: Math.min(100, Math.max(1, limit)), // Max 100 items per page
+    offset: (Math.max(1, page) - 1) * Math.min(100, Math.max(1, limit))
   }
 }

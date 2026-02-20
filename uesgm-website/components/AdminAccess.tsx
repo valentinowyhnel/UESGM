@@ -44,7 +44,7 @@ export function AdminAccess() {
             if (newCount >= 2) {
                 setShowAccess(true)
                 setTimeout(() => {
-                    router.push('/portal')
+                    router.push('/login')
                 }, 500)
                 return 0
             }
@@ -59,7 +59,7 @@ export function AdminAccess() {
             if (newCount >= 5) {
                 setShowAccess(true)
                 setTimeout(() => {
-                    router.push('/portal')
+                    router.push('/login')
                 }, 500)
                 return 0
             }
@@ -142,7 +142,7 @@ export function AdminAccessFooter({ children }: { children: React.ReactNode }) {
         setClickCount(prev => {
             const newCount = prev + 1
             if (newCount >= 2) {
-                router.push('/portal')
+                router.push('/login')
                 return 0
             }
             return newCount
@@ -182,7 +182,7 @@ export function AdminAccessCopyright() {
         setClickCount(prev => {
             const newCount = prev + 1
             if (newCount >= 5) {
-                router.push('/portal')
+                router.push('/login')
                 return 0
             }
             return newCount

@@ -1,79 +1,221 @@
-import { Pool } from 'pg'
-import { PrismaClient } from "@prisma/client"
-import bcrypt from "bcryptjs"
-import * as dotenv from "dotenv"
+/**
+ * Script de seed pour la base de données UESGM
+ * 
+ * Usage: npx prisma db seed
+ * ou: npx tsx prisma/seed.ts
+ */
 
-dotenv.config()
+import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
-const connectionString = process.env.DATABASE_URL
-if (!connectionString) {
-    throw new Error("❌ DATABASE_URL is not defined in your .env file")
-}
-
-// Configuration du pool de connexions PostgreSQL
-const pool = new Pool({
-    connectionString,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-})
-
-// Initialisation de Prisma avec la configuration standard
-const prisma = new PrismaClient({
-    datasources: {
-        db: { url: connectionString },
-    },
-})
+const prisma = new PrismaClient()
 
 async function main() {
-    const email = "president@uesgm.ma"
-    const password = "UESGM_President_2025_Secret!" // Complies with policy (Min 12, Mix chars)
-    const name = "Président UESGM"
+  console.log('🌱 Début du seed de la base de données UESGM...')
 
-    console.log("🌱 Démarrage du seeding...")
-
-    const hashedPassword = await bcrypt.hash(password, 12)
-
-    const superAdmin = await prisma.user.upsert({
-        where: { email },
-        update: {
-            password: hashedPassword,
-            role: "SUPER_ADMIN", // This must match the Role enum in schema.prisma
-            name: name
-        },
-        create: {
-            email,
-            password: hashedPassword,
-            role: "SUPER_ADMIN",
-            name: name
-        }
-    })
-
-    console.log(`✅ Super Admin par défaut créé/mis à jour : ${superAdmin.email}`)
-    console.log(`🔑 Mot de passe : ${password}`)
-
-    // Seeding Antennes
-    const antennes = [
-        { city: "Casablanca", responsable: "Ahmed Alaoui", email: "casa@uesgm.ma", phone: "+212 600 000 001" },
-        { city: "Rabat", responsable: "Fatima Zahra", email: "rabat@uesgm.ma", phone: "+212 600 000 002" },
-        { city: "Marrakech", responsable: "Youssef Mansouri", email: "kech@uesgm.ma", phone: "+212 600 000 003" }
-    ]
-
-    for (const antenne of antennes) {
-        await prisma.antenne.upsert({
-            where: { id: `seed-${antenne.city.toLowerCase()}` },
-            update: antenne,
-            create: { id: `seed-${antenne.city.toLowerCase()}`, ...antenne }
-        })
+  // ============================================
+  // CRÉATION DES COMPTES ADMINISTRATEURS
+  // ============================================
+  
+  // Compte Admin Principal
+  const adminPassword = await bcrypt.hash('7d99755735371a9f891309e336bf8f71', 12)
+  
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@uesgm.ma' },
+    update: {},
+    create: {
+      email: 'admin@uesgm.ma',
+      name: 'Administrateur Principal',
+      password: adminPassword,
+      role: 'SUPER_ADMIN',
+      emailVerified: new Date()
     }
-    console.log("✅ Antennes initiales créées.")
+  })
+  console.log(`✅ Admin créé: ${adminUser.email}`)
 
-    console.log("🚀 Seeding terminé avec succès.")
+  // Compte President
+  const presidentPassword = await bcrypt.hash('UESGM_President_2025_Secret!', 12)
+  
+  const presidentUser = await prisma.user.upsert({
+    where: { email: 'president@uesgm.ma' },
+    update: {},
+    create: {
+      email: 'president@uesgm.ma',
+      name: 'Président UESGM',
+      password: presidentPassword,
+      role: 'ADMIN',
+      emailVerified: new Date()
+    }
+  })
+  console.log(`✅ President créé: ${presidentUser.email}`)
+
+  // ============================================
+  // CRÉATION DES MEMBRES DU BUREAU EXÉCUTIF
+  // ============================================
+  
+  const executiveMembers = [
+    { name: 'Jean-Pierre MAVoungou', position: 'Président', order: 1, bio: 'Étudiant en Master à Rabat' },
+    { name: 'Marie Louise OBAME', position: 'Vice-Présidente', order: 2, bio: 'Étudiante en Médecine à Casablanca' },
+    { name: 'Serge NGOY', position: 'Secrétaire Général', order: 3, bio: 'Étudiant en Droit à Rabat' },
+    { name: 'Patrick MPAGA', position: 'Trésorier', order: 4, bio: 'Étudiant en Économie à Rabat' },
+    { name: 'Flore NZOLO', position: 'Responsale Communication', order: 5, bio: 'Étudiante en Communication à Casablanca' },
+  ]
+
+  for (const member of executiveMembers) {
+    await prisma.executiveMember.upsert({
+      where: { email: member.name.toLowerCase().replace(/ /g, '.') + '@uesgm.ma' },
+      update: {},
+      create: {
+        name: member.name,
+        position: member.position,
+        email: member.name.toLowerCase().replace(/ /g, '.') + '@uesgm.ma',
+        order: member.order,
+        bio: member.bio
+      }
+    })
+  }
+  console.log(`✅ ${executiveMembers.length} membres du bureau exécutif créés`)
+
+  // ============================================
+  // CRÉATION DES ANTENNES RÉGIONALES
+  // ============================================
+  
+  const antennes = [
+    { name: 'Antenne Rabat-Salé', city: 'Rabat', country: 'Maroc', memberCount: 45 },
+    { name: 'Antenne Casablanca', city: 'Casablanca', country: 'Maroc', memberCount: 38 },
+    { name: 'Antenne Marrakech', city: 'Marrakech', country: 'Maroc', memberCount: 22 },
+    { name: 'Antenne Fès', city: 'Fès', country: 'Maroc', memberCount: 18 },
+    { name: 'Antenne Tanger', city: 'Tanger', country: 'Maroc', memberCount: 15 },
+    { name: 'Antenne Agadir', city: 'Agadir', country: 'Maroc', memberCount: 12 },
+  ]
+
+  for (const antenne of antennes) {
+    await prisma.antenne.upsert({
+      where: { city: antenne.city },
+      update: {},
+      create: antenne
+    })
+  }
+  console.log(`✅ ${antennes.length} antennes régionales créées`)
+
+  // ============================================
+  // CRÉATION DES PARTENAIRES
+  // ============================================
+  
+  const partners = [
+    { name: 'Ambassade du Gabon au Maroc', type: 'INSTITUTIONAL', order: 1 },
+    { name: 'Université Mohammed V', type: 'INSTITUTIONAL', order: 2 },
+    { name: 'Université Hassan II', type: 'INSTITUTIONAL', order: 3 },
+    { name: 'OCSID', type: 'ASSOCIATION', order: 4 },
+    { name: 'BGF', type: 'PRIVATE', order: 5 },
+  ]
+
+  for (const partner of partners) {
+    await prisma.partner.upsert({
+      where: { name: partner.name },
+      update: {},
+      create: partner
+    })
+  }
+  console.log(`✅ ${partners.length} partenaires créés`)
+
+  // ============================================
+  // CRÉATION DES STATISTIQUES
+  // ============================================
+  
+  await prisma.statistics.upsert({
+    where: { id: 'global-stats' },
+    update: {},
+    create: {
+      id: 'global-stats',
+      totalMembers: 150,
+      totalAntennes: antennes.length,
+      totalEvents: 0,
+      totalProjects: 0,
+      totalDocuments: 0
+    }
+  })
+  console.log(`✅ Statistiques initiales créées`)
+
+  // ============================================
+  // CRÉATION D'UN ÉVÉNEMENT EXEMPLE
+  // ============================================
+  
+  const event = await prisma.event.upsert({
+    where: { slug: 'journee-integration-2024' },
+    update: {},
+    create: {
+      title: 'Journée d\'Intégration 2024',
+      description: 'Journée d\'intégration des nouveaux étudiants gabonais au Maroc. Au programme: activités culturelles, rencontres et networking.',
+      location: 'Rabat, Maroc',
+      startDate: new Date('2024-10-15T14:00:00Z'),
+      slug: 'journee-integration-2024',
+      status: 'PUBLISHED',
+      category: 'INTEGRATION',
+      publishedAt: new Date(),
+      maxAttendees: 100,
+      createdById: adminUser.id
+    }
+  })
+  console.log(`✅ Événement exemple créé: ${event.title}`)
+
+  // ============================================
+  // CRÉATION D'UN PROJET EXEMPLE
+  // ============================================
+  
+  const project = await prisma.project.upsert({
+    where: { slug: 'programme-soutien-scolaire' },
+    update: {},
+    create: {
+      title: 'Programme de Soutien Scolaire',
+      slug: 'programme-soutien-scolaire',
+      description: 'Programme de mentorat et de soutien scolaire pour les étudiants gabonais au Maroc. Nous aidons les nouveaux étudiants à s\'adapter au système éducatif marocain.',
+      shortDesc: 'Mentorat et soutien pour les étudiants',
+      category: 'EDUCATION',
+      status: 'IN_PROGRESS',
+      progress: 35,
+      isPublished: true,
+      startDate: new Date('2024-09-01'),
+      createdById: adminUser.id
+    }
+  })
+  console.log(`✅ Projet exemple créé: ${project.title}`)
+
+  // ============================================
+  // CRÉATION D'UN DOCUMENT EXEMPLE
+  // ============================================
+  
+  await prisma.document.upsert({
+    where: { slug: 'guide-accueil-2024' },
+    update: {},
+    create: {
+      title: 'Guide d\'Accueil 2024',
+      slug: 'guide-accueil-2024',
+      description: 'Guide complet pour les nouveaux étudiants gabonais au Maroc',
+      category: 'GUIDE',
+      visibility: 'PUBLIC',
+      fileUrl: 'https://example.com/guide.pdf',
+      fileName: 'guide-accueil-2024.pdf',
+      fileSize: 2500000,
+      mimeType: 'application/pdf',
+      isPublished: true,
+      downloads: 0,
+      createdById: adminUser.id
+    }
+  })
+  console.log(`✅ Document exemple créé: Guide d'Accueil 2024`)
+
+  console.log('\n🎉 Seed terminé avec succès!')
+  console.log('\n📋 Comptes administrateur:')
+  console.log('   - Admin: admin@uesgm.ma / 7d99755735371a9f891309e336bf8f71 (SUPER_ADMIN)')
+  console.log('   - President: president@uesgm.ma / UESGM_President_2025_Secret! (ADMIN)')
 }
 
 main()
-    .catch((e) => {
-        console.error("❌ Erreur lors du seeding :", e)
-        process.exit(1)
-    })
-    .finally(async () => {
-        await prisma.$disconnect()
-    })
+  .catch((e) => {
+    console.error('❌ Erreur lors du seed:', e)
+    process.exit(1)
+  })
+  .finally(async () => {
+    await prisma.$disconnect()
+  })

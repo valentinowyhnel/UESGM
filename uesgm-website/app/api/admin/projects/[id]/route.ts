@@ -1,6 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAdminAuth, validateAdminData, logAdminAction } from '@/lib/admin-security'
 import { prisma } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
+
+// GET - Récupérer un projet par ID
+export const GET = withAdminAuth(async (req: NextRequest, { params }: { params: { id: string } }) => {
+  try {
+    const projectId = params.id
+
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        createdBy: {
+          select: { id: true, name: true, email: true }
+        },
+        tags: true
+      }
+    })
+
+    if (!project) {
+      return NextResponse.json(
+        { error: 'Projet non trouvé' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json({ project })
+  } catch (error: any) {
+    console.error('GET project error:', error)
+    return NextResponse.json(
+      { error: 'Erreur lors de la récupération du projet' },
+      { status: 500 }
+    )
+  }
+})
 
 // PUT - Mettre à jour un projet
 export const PUT = withAdminAuth(async (req: NextRequest, { params }: { params: { id: string } }) => {
@@ -39,6 +72,7 @@ export const PUT = withAdminAuth(async (req: NextRequest, { params }: { params: 
         category: body.category,
         status: body.status,
         slug: body.slug || body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        isPublished: body.isPublished ?? existingProject.isPublished,
         updatedAt: new Date()
       }
     })
@@ -54,6 +88,13 @@ export const PUT = withAdminAuth(async (req: NextRequest, { params }: { params: 
         newData: body
       }
     )
+
+    // Revalidation du cache - toujours rafraichir les pages admin
+    revalidatePath('/admin/projets')
+    if (body.isPublished === true || (existingProject.isPublished === false && body.isPublished === true)) {
+      revalidatePath('/projets')
+      revalidatePath(`/projets/${projectId}`)
+    }
 
     return NextResponse.json({ project: updatedProject })
   } catch (error: any) {
@@ -114,6 +155,13 @@ export const DELETE = withAdminAuth(async (req: NextRequest, { params }: { param
         deletedProject: existingProject
       }
     )
+
+    // Revalidation du cache
+    revalidatePath('/projets')
+    revalidatePath('/admin/projets')
+    if (existingProject.slug) {
+      revalidatePath(`/projets/${existingProject.slug}`)
+    }
 
     return NextResponse.json({ 
       message: 'Projet supprimé avec succès',

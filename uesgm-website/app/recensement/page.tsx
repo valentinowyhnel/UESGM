@@ -4,8 +4,7 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import GabonMapFixed from "@/components/maps/GabonMapFixed"
-import { 
+import {  
     Users, MapPin, CheckCircle, Star, Shield, Heart, 
     Globe, Flag, Award, HandHeart, Building, TreePine
 } from "lucide-react"
@@ -32,58 +31,22 @@ export default function RecensementPage() {
                                 <div className="absolute inset-x-0 bottom-0 h-1/3 bg-blue-600"></div>
                             </div>
                             <div>
-                                <h1 className="text-3xl font-bold text-white">Recensement National</h1>
-                                <p className="text-green-100">Gabon 2026</p>
+                                <h1 className="text-3xl font-bold text-white">Recensement UESGM</h1>
+                                <p className="text-green-100">Gabonais au Maroc</p>
                             </div>
                         </div>
-                        <Badge className="bg-yellow-400 text-green-900 border-2 border-yellow-300 font-bold">
-                            Service Public
+                        <Badge className="bg-blue-600 text-white border-2 border-blue-400 font-bold">
+                            UESGM - Maroc
                         </Badge>
                     </div>
                 </div>
             </div>
 
-            {/* Carte du Gabon interactive */}
+            {/* Message et informations */}
             <div className="container mx-auto px-4 py-12">
-                <div className="grid lg:grid-cols-2 gap-12 items-center">
-                    {/* Carte SVG du Gabon améliorée */}
-                    <div className="relative">
-                        <Card className="shadow-2xl border-4 border-yellow-400 bg-white/90 backdrop-blur">
-                            <CardContent className="p-8">
-                                <div className="relative">
-                                    {/* Carte du Gabon avec données précises et corrigées */}
-                                    <GabonMapFixed
-                                        width={400}
-                                        height={500}
-                                        className="w-full h-auto"
-                                        interactive={true}
-                                        onClick={handleMapClick}
-                                    />
-                                    
-                                    {/* Légende */}
-                                    <div className="mt-6 flex justify-center gap-4 text-sm">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-                                            <span className="text-gray-600">Forêt Équatoriale</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
-                                            <span className="text-gray-600">Équateur/Soleil</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                                            <span className="text-gray-600">Océan Atlantique</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Message et informations */}
-                    <div className="space-y-6">
-                        {/* Carte principale */}
-                        <Card className="shadow-xl border-l-4 border-yellow-400 bg-gradient-to-r from-green-50 to-blue-50">
+                <div className="space-y-6">
+                    {/* Carte principale */}
+                    <Card className="shadow-xl border-l-4 border-yellow-400 bg-gradient-to-r from-green-50 to-blue-50">
                             <CardContent className="p-8">
                                 <div className="flex items-start gap-4">
                                     <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center flex-shrink-0">
@@ -91,16 +54,16 @@ export default function RecensementPage() {
                                     </div>
                                     <div>
                                         <h2 className="text-2xl font-bold text-green-800 mb-3">
-                                            Pourquoi se recenser ?
+                                            Pourquoi se recenser au Maroc ?
                                         </h2>
                                         <div className="space-y-4 text-gray-700">
                                             <p className="leading-relaxed">
-                                                Le recensement est un <span className="font-bold text-green-600">acte citoyen fondamental</span> 
-                                                qui permet à l&apos;État de connaître sa population pour mieux vous servir.
+                                                Le recensement des Gabonais au Maroc est un <span className="font-bold text-green-600">acte citoyen fondamental</span> 
+                                                qui nous permet de mieux vous servir et de représenter la communauté gabonaise au Maroc.
                                             </p>
                                             <p className="leading-relaxed">
-                                                Vos données garantissent une <span className="font-bold text-yellow-600">répartition juste des ressources</span>, 
-                                                une planification efficace des services publics et un développement équilibré de toutes nos régions.
+                                                Vos données permettent une <span className="font-bold text-yellow-600">meilleure coordination</span> 
+                                                entre l'ambassade, l'UESGM et les autorités marocaines pour vous accompagner.
                                             </p>
                                         </div>
                                     </div>
@@ -116,11 +79,11 @@ export default function RecensementPage() {
                                         <Heart className="w-8 h-8" />
                                     </div>
                                     <h3 className="text-2xl font-bold">
-                                        Faites votre devoir de citoyen
+                                        Rejoignez la communauté gabonaise au Maroc
                                     </h3>
                                     <p className="text-white/90 leading-relaxed">
-                                        Chaque Gabonais compte. Votre participation est essentielle 
-                                        pour construire ensemble le Gabon de demain.
+                                        Votre participation nous aide à mieux vous représenter et à renforcer 
+                                        les liens entre les Gabonais résidant au Maroc.
                                     </p>
                                     <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                         <Button 
@@ -148,26 +111,25 @@ export default function RecensementPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <Card className="border-l-4 border-green-500 bg-white">
                                 <CardContent className="p-4 text-center">
-                                    <Building className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                                    <h4 className="font-bold text-green-800 mb-1">Infrastructures</h4>
-                                    <p className="text-sm text-gray-600">Écoles, hôpitaux, routes adaptés à vos besoins</p>
+                                    <MapPin className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                                    <h4 className="font-bold text-green-800 mb-1">Représentation</h4>
+                                    <p className="text-sm text-gray-600">Une voix unie pour la communauté gabonaise</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-l-4 border-yellow-500 bg-white">
                                 <CardContent className="p-4 text-center">
                                     <Award className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                                    <h4 className="font-bold text-green-800 mb-1">Services</h4>
-                                    <p className="text-sm text-gray-600">Meilleure planification des services publics</p>
+                                    <h4 className="font-bold text-green-800 mb-1">Services consulaires</h4>
+                                    <p className="text-sm text-gray-600">Meilleur accompagnement par l'ambassade</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-l-4 border-blue-500 bg-white">
                                 <CardContent className="p-4 text-center">
-                                    <TreePine className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                                    <h4 className="font-bold text-green-800 mb-1">Environnement</h4>
-                                    <p className="text-sm text-gray-600">Protection durable de nos ressources naturelles</p>
-                                </CardContent>
-                            </Card>
-                        </div>
+                                    <Globe className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                                    <h4 className="font-bold text-green-800 mb-1">Événements</h4>
+                                    <p className="text-sm text-gray-600">Organisation de activités culturelles</p>
+                            </CardContent>
+                        </Card>
                     </div>
                 </div>
 
@@ -177,11 +139,11 @@ export default function RecensementPage() {
                         <CardContent className="p-6">
                             <div className="flex items-center gap-3 mb-4">
                                 <CheckCircle className="w-6 h-6 text-green-600" />
-                                <h3 className="font-bold text-green-800">Confidentialité</h3>
+                                <h3 className="font-bold text-green-800">Communauté</h3>
                             </div>
                             <p className="text-gray-600 text-sm leading-relaxed">
-                                Vos informations personnelles sont protégées par la loi et utilisées 
-                                uniquement à des fins statistiques et de planification.
+                                Votre inscription permet de créer un réseau solide entre 
+                                les Gabonais résidant au Maroc.
                             </p>
                         </CardContent>
                     </Card>
@@ -190,11 +152,11 @@ export default function RecensementPage() {
                         <CardContent className="p-6">
                             <div className="flex items-center gap-3 mb-4">
                                 <Star className="w-6 h-6 text-yellow-600" />
-                                <h3 className="font-bold text-green-800">Gratuit</h3>
+                                <h3 className="font-bold text-green-800">Entraide</h3>
                             </div>
                             <p className="text-gray-600 text-sm leading-relaxed">
-                                Le recensement est un service public entièrement gratuit. 
-                                Ne payez jamais pour vous recenser.
+                                L'UESGM organise des événements et rencontres pour 
+                                renforcer les liens entre membres de la communauté.
                             </p>
                         </CardContent>
                     </Card>
@@ -203,11 +165,11 @@ export default function RecensementPage() {
                         <CardContent className="p-6">
                             <div className="flex items-center gap-3 mb-4">
                                 <HandHeart className="w-6 h-6 text-blue-600" />
-                                <h3 className="font-bold text-green-800">Civisme</h3>
+                                <h3 className="font-bold text-green-800">Représentation</h3>
                             </div>
                             <p className="text-gray-600 text-sm leading-relaxed">
-                                Se recenser, c'est contribuer activement au développement 
-                                de notre cher pays et à l'avenir de nos enfants.
+                                Being counted helps us better represent your interests 
+                                vis-à-vis the Moroccan and Gabonese authorities.
                             </p>
                         </CardContent>
                     </Card>
@@ -218,11 +180,11 @@ export default function RecensementPage() {
                     <div className="bg-gradient-to-b from-green-600 via-yellow-400 to-blue-600 rounded-2xl p-8 text-white">
                         <div className="flex items-center justify-center gap-3 mb-4">
                             <Flag className="w-8 h-8" />
-                            <h2 className="text-3xl font-bold">Ensemble pour le Gabon</h2>
+                            <h2 className="text-3xl font-bold">Ensemble pour les Gabonais au Maroc</h2>
                             <Flag className="w-8 h-8" />
                         </div>
                         <p className="text-xl mb-6 text-white/90">
-                            Votre participation est un investissement dans l'avenir de notre nation
+                            Votre participation renforce notre communauté au Maroc
                         </p>
                         <Button 
                             size="lg"

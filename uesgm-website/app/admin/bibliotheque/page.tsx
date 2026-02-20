@@ -31,7 +31,7 @@ interface Document {
     fileName: string
     fileSize: number
     mimeType: string
-    category: "STATUTS" | "RAPPORTS" | "GUIDES" | "ACADEMIQUE" | "JURIDIQUE" | "ADMINISTRATIF"
+    category: "STATUTS" | "RAPPORT" | "GUIDE" | "LIVRE" | "ARTICLE" | "ACADEMIQUE" | "JURIDIQUE" | "ADMINISTRATIF"
     visibility: "PUBLIC" | "MEMBERS_ONLY" | "ADMIN_ONLY"
     version: number
     downloads: number
@@ -70,8 +70,10 @@ interface DocumentsResponse {
 // Configuration des catégories
 const categoryConfig = {
     STATUTS: { label: "Statuts", color: "bg-blue-100 text-blue-800" },
-    RAPPORTS: { label: "Rapports", color: "bg-green-100 text-green-800" },
-    GUIDES: { label: "Guides", color: "bg-purple-100 text-purple-800" },
+    RAPPORT: { label: "Rapports", color: "bg-green-100 text-green-800" },
+    GUIDE: { label: "Guides", color: "bg-purple-100 text-purple-800" },
+    LIVRE: { label: "Livres", color: "bg-yellow-100 text-yellow-800" },
+    ARTICLE: { label: "Articles", color: "bg-pink-100 text-pink-800" },
     ACADEMIQUE: { label: "Académique", color: "bg-orange-100 text-orange-800" },
     JURIDIQUE: { label: "Juridique", color: "bg-red-100 text-red-800" },
     ADMINISTRATIF: { label: "Administratif", color: "bg-gray-100 text-gray-800" },
@@ -278,7 +280,7 @@ export default function BibliothequePage() {
                             <div>
                                 <p className="text-sm text-gray-600">Versions</p>
                                 <p className="text-2xl font-bold">
-                                    {documents.reduce((sum, d) => sum + d.versions.length, 0)}
+                                    {documents.reduce((sum, d) => sum + (d.versions?.length || 0), 0)}
                                 </p>
                             </div>
                         </div>
@@ -385,7 +387,7 @@ export default function BibliothequePage() {
                                                             <p className="text-sm text-gray-500">
                                                                 {formatFileSize(document.fileSize)} • {document.fileName}
                                                             </p>
-                                                            {document.tags.length > 0 && (
+                                                            {document.tags && document.tags.length > 0 && (
                                                                 <div className="flex flex-wrap gap-1 mt-1">
                                                                     {document.tags.slice(0, 3).map((tag) => (
                                                                         <Badge key={tag.id} variant="outline" className="text-xs">
@@ -421,7 +423,7 @@ export default function BibliothequePage() {
                                                 <TableCell>
                                                     <div className="flex items-center space-x-1">
                                                         <span className="font-medium">v{document.version}</span>
-                                                        {document.versions.length > 0 && (
+                                                        {document.versions && document.versions.length > 0 && (
                                                             <Badge variant="outline" className="text-xs">
                                                                 +{document.versions.length}
                                                             </Badge>

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
+import { toast } from "sonner"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Mail, Phone, MapPin, Shield, Users, Award, Briefcase } from "lucide-react"
 import Image from "next/image"
@@ -13,7 +14,7 @@ const bureauStructure = {
         name: "MINTSA NDONG Emery Désiré",
         role: "Président",
         location: "Casablanca",
-        email: "president@uesgm.ma",
+        email: "mintsaemerydesire2000@gmail.com",
         phone: "+212 774-975947",
         image: "/images/president.jpg"
     },
@@ -22,16 +23,16 @@ const bureauStructure = {
             name: "NDEMBI BOUCKA Amy-Sarahi",
             role: "Secrétaire Générale",
             location: "Rabat",
-            email: "sg@uesgm.ma",
+            email: "Sarahiamy931@gmail.com",
             phone: "+212 669-936086",
             image: "/images/Secrétaire Générale du Bureau.jpg"
         },
         adjointe: {
-            name: "OTSAGHE MENZALE Christabelle",
+            name: "OTSAGHE MENZALE Christabelle Perine Massie",
             role: "Secrétaire Générale Adjointe",
             location: "Casablanca",
-            email: "sg-adjointe@uesgm.ma",
-            phone: "+212 6 XX XX XX XX",
+            email: "christabelleotsaghe6@gmail.com",
+            phone: "+212 775-002317",
             image: "/images/Secrétaire Générale Adjointe.jpg"
         }
     },
@@ -40,16 +41,16 @@ const bureauStructure = {
             name: "OSSIMA Maixent Daniel Ike",
             role: "Trésorier Général",
             location: "Agadir",
-            email: "tresorerie@uesgm.ma",
-            phone: "+212 6 XX XX XX XX",
+            email: "Ikeossima101@gmail.com",
+            phone: "+212 619-213683",
             image: "/images/Trésorier Général.jpg"
         },
         adjoint: {
-            name: "LEBOUNDANGOYE MPIGA Carl Marley",
+            name: "LEBOUNDANGOYE MPIGA Cart Marley",
             role: "Trésorier Général Adjoint",
             location: "Casablanca",
-            email: "tresorerie-adjoint@uesgm.ma",
-            phone: "+212 6 XX XX XX XX",
+            email: "Leboundangoyecarlmarley@gmail.com",
+            phone: "+212 781-244450",
             image: "/images/Trésorier Général Adjoint.jpg"
         }
     },
@@ -58,39 +59,41 @@ const bureauStructure = {
             name: "MATSANGA BA Juliana Dina",
             role: "Déléguée aux Affaires Académiques",
             location: "Tanger",
-            email: "academique@uesgm.ma",
-            phone: "+212 6 XX XX XX XX",
+            email: "matsangabajuliana@gmail.com",
+            phone: "+212 615-157357",
             image: "/images/Délégué aux Affaires Académiques.jpg"
         },
         {
             name: "MIMBOUI MENDOU Juliette Gisnelle",
             role: "Déléguée aux Affaires Culturelles",
             location: "Casablanca",
-            email: "culture@uesgm.ma",
+            email: "gisnellem@gmail.com",
             phone: "+212 775-922785",
             image: "/images/Déléguée aux Affaires Culturelles.jpg"
         },
         {
             name: "BOUT MEDZO Alane Klein",
-            role: "Délégué à la Communication",
+            role: "Délégué en charge de la Communication",
             location: "Casablanca",
-            email: "communication@uesgm.ma",
-            phone: "+212 6 75 84 92 13"
+            email: "alaneklein@icloud.com",
+            phone: "+212 675-847091",
+            image: "/images/Délégué en charge de la Communication.jpg"
         },
         {
-            name: "EKOMESSE MVE ELZA",
+            name: "EKOMESSE MVE Elza",
             role: "Déléguée aux Affaires Sociales",
             location: "Settat",
-            email: "social@uesgm.ma",
-            phone: "+212 6 12 34 56 78",
-            specialStyle: true
+            email: "elzaekomesse@gmail.com",
+            phone: "+212 780-509109",
+            specialStyle: true,
+            image: "/images/Déléguée aux Affaires Sociales.jpg"
         },
         {
-            name: "NGANGORI YAN-DOMINIQUE",
+            name: "NGANGORI Yan -Dominique",
             role: "Délégué aux Affaires Sportives",
             location: "Casablanca",
-            email: "sport@uesgm.ma",
-            phone: "+212 6 98 76 54 32",
+            email: "yanngangori6@gmail.com",
+            phone: "+212 657-894475",
             image: "/images/Delegué aux Affaires Sportives.jpg"
         }
     ]
@@ -108,6 +111,8 @@ interface Member {
 
 // Composant carte membre moderne
 function MemberCard({ member, isClickable = false, onClick }: { member: Member; isClickable?: boolean; onClick?: () => void }) {
+    const [imageError, setImageError] = useState(false)
+    
     return (
         <div 
             className={`group relative bg-gradient-to-br from-white to-blue-50/30 rounded-2xl p-8 border border-blue-100 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 ${isClickable ? "cursor-pointer" : ""}`}
@@ -121,13 +126,15 @@ function MemberCard({ member, isClickable = false, onClick }: { member: Member; 
                 <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-gold rounded-lg opacity-20 blur-xl group-hover:opacity-30 transition-opacity"></div>
                     <div className="relative w-24 h-24 overflow-hidden">
-                        {member.image ? (
+                        {member.image && !imageError ? (
                             <Image
                                 src={member.image}
                                 alt={member.name}
                                 width={96}
                                 height={96}
                                 className={`${member.specialStyle ? 'rounded-t-lg' : 'rounded-b-lg'} object-cover border-4 border-white shadow-lg`}
+                                unoptimized
+                                onError={() => setImageError(true)}
                             />
                         ) : (
                             <div className={`w-24 h-24 ${member.specialStyle ? 'rounded-t-lg' : 'rounded-b-lg'} border-4 border-white shadow-lg bg-gradient-to-br from-blue-500 to-gold flex items-center justify-center`}>
@@ -180,11 +187,12 @@ export default function BureauPage() {
 
     const handlePresidentClick = () => {
         const newCount = clickCount + 1
-        if (newCount >= 3) {
-            router.push("/portal")
+        if (newCount >= 2) {
+            router.push("/login")
             setClickCount(0)
         } else {
             setClickCount(newCount)
+            toast.info(`${newCount}/2 clics pour accéder à l'espace admin`)
         }
     }
 
@@ -209,16 +217,6 @@ export default function BureauPage() {
                         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                             Union des Étudiants Gabonais au Maroc • Mandat 2025-2026
                         </p>
-                        <div className="flex justify-center space-x-8 pt-4">
-                            <div className="flex items-center text-sm text-gray-500">
-                                <Users className="w-4 h-4 mr-2 text-blue-500" />
-                                <span>11 Membres</span>
-                            </div>
-                            <div className="flex items-center text-sm text-gray-500">
-                                <Briefcase className="w-4 h-4 mr-2 text-gold" />
-                                <span>4 Départements</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -307,7 +305,7 @@ export default function BureauPage() {
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
                             <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl px-6 py-3 border border-blue-200">
                                 <Mail className="w-5 h-5 text-blue-600 inline mr-2" />
-                                <span className="text-blue-700 font-semibold">contact@uesgm.ma</span>
+                                <span className="text-blue-700 font-semibold">mintsaemerydesire2000@gmail.com</span>
                             </div>
                             <div className="bg-gradient-to-r from-gold/20 to-gold/30 rounded-xl px-6 py-3 border border-gold/30">
                                 <Phone className="w-5 h-5 text-gold inline mr-2" />

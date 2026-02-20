@@ -25,6 +25,11 @@ import { cn } from '@/lib/utils'
 // ------------------------------------------------------------------
 // Schéma de validation
 // ------------------------------------------------------------------
+// Pattern CUID de Prisma (ex: clm3h5d2w0000qwer456abcde)
+const cuidPattern = /^c[0-9a-z]{20,}$/i
+// Pattern UUID standard
+const uuidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
+
 const eventSchema = z.object({
     title: z.string()
         .min(3, 'Le titre doit contenir au moins 3 caractères')
@@ -32,7 +37,7 @@ const eventSchema = z.object({
         .refine((val) => val.trim().length > 0, 'Le titre ne peut pas être vide'),
 
     description: z.string()
-        .min(10, 'La description doit contenir au moins 10 caractères')
+        .min(1, 'La description est requise')
         .max(5000, 'La description ne peut pas dépasser 5000 caractères'),
 
     date: z.string().refine((val) => !isNaN(Date.parse(val)), {
@@ -40,8 +45,8 @@ const eventSchema = z.object({
     }),
 
     location: z.string()
-        .min(2, 'Le lieu doit contenir au moins 2 caractères')
-        .max(200, 'Le lieu ne peut pas dépasser 200 caractères'),
+        .max(200, 'Le lieu ne peut pas dépasser 200 caractères')
+        .optional(),
 
     category: z.string()
         .min(1, 'Veuillez sélectionner une catégorie')
@@ -55,9 +60,13 @@ const eventSchema = z.object({
     // Publication : si publié, on peut choisir le mode
     published: z.boolean().default(false),
     publishMode: z.enum(['NOW', 'SCHEDULED']).optional(),
-    publishedAt: z.string().datetime().optional(),
+    publishedAt: z.string().optional(),
 
-    antenneIds: z.array(z.string().uuid('ID d\'antenne invalide'))
+    // Format CUID ou UUID de Prisma
+    antenneIds: z.array(z.string().refine(
+        (val) => cuidPattern.test(val) || uuidPattern.test(val),
+        'ID d\'antenne invalide'
+    ))
         .min(1, 'Veuillez sélectionner au moins une antenne'),
 })
 
@@ -211,7 +220,8 @@ export default function EventForm({ eventId, initialData }: EventFormProps) {
         const newValue = checked
             ? [...current, antenneId]
             : current.filter((id) => id !== antenneId)
-        form.setValue('antenneIds', newValue, { shouldValidate: true })
+        // Ne pas valider tous les champs, seulement antenneIds
+        form.setValue('antenneIds', newValue, { shouldValidate: false })
     }
 
     // ------------------------------------------------------------------
@@ -275,23 +285,26 @@ export default function EventForm({ eventId, initialData }: EventFormProps) {
 
         try {
             // Construction du payload pour l'API
+            // Accepter les URLs relatives (comme /uploads/...) ou absolues
+            const validImages = images.filter(img => img && (img.startsWith('http') || img.startsWith('/')))
+            
             const payload: any = {
                 title: data.title.trim(),
                 description: data.description.trim(),
                 startDate: data.date,
                 endDate: data.date, // même date si pas de fin distincte
-                location: data.location.trim(),
+                location: data.location?.trim() || '',
                 category: data.category,
-                antenneIds: data.antenneIds,
-                imageUrl: images[0] || null,
-                images: images,
+                antenneIds: data.antenneIds || [],
+                imageUrl: validImages[0] || null,
+                images: validImages,
                 published: data.published,
             }
 
             // Si publié, on ajoute les infos de publication
             if (data.published) {
                 payload.publishMode = data.publishMode || 'NOW'
-                payload.publishedAt = data.publishMode === 'SCHEDULED' ? data.publishedAt : new Date().toISOString()
+                payload.publishedAt = data.publishMode === 'SCHEDULED' && data.publishedAt ? data.publishedAt : new Date().toISOString()
             }
 
             // Ajout du token CSRF (optionnel selon votre API)
@@ -459,7 +472,7 @@ export default function EventForm({ eventId, initialData }: EventFormProps) {
                                         alt={`Prévisualisation ${idx + 1}`}
                                         className="w-full h-full object-cover"
                                         onError={(e) => {
-                                            (e.target as HTMLImageElement).src = '/images/placeholder-image.jpg'
+                                            (e.target as HTMLImageElement).src = '/images/placeholder-image.svg'
                                         }}
                                     />
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">

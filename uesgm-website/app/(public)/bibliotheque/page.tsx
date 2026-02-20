@@ -4,23 +4,31 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, FileText, Download, Book, Filter } from "lucide-react"
-import { useState, useEffect } from "react"
+import { Search, FileText, Download, Book, Filter, Wifi, WifiOff } from "lucide-react"
+import { useState, useEffect, useRef, useMemo, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
+import { toast } from "sonner"
 
 interface Document {
     id: string
     title: string
+    description?: string
     category: string
-    size: string
-    date: string
-    type: string
+    size?: string
+    fileSize?: number
+    date?: string
     fileUrl?: string
+    downloadUrl?: string
+    createdAt?: string
+    type?: string
+    canDownload?: boolean
+    isPublished?: boolean
 }
 
 // Types de documents
 const categories = ["Tous", "Statuts", "Rapports", "Guides", "Académique", "Juridique"]
 
-// Données fictives
+// Données fictives (fallback)
 const mockDocuments: Document[] = [
     { id: "1", title: "Statuts de l'UESGM", category: "Statuts", size: "2.4 MB", date: "2024", type: "PDF" },
     { id: "2", title: "Rapport Moral 2024-2025", category: "Rapports", size: "5.1 MB", date: "2025", type: "PDF" },
@@ -30,41 +38,147 @@ const mockDocuments: Document[] = [
 ]
 
 export default function LibraryPage() {
+    return (
+        <Suspense fallback={
+            <div className="container mx-auto px-4 py-8">
+                <div className="animate-pulse space-y-6">
+                    <div className="h-8 bg-slate-200 rounded w-1/3"></div>
+                    <div className="grid md:grid-cols-3 gap-4">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="h-10 bg-slate-200 rounded"></div>
+                        ))}
+                    </div>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <div key={i} className="h-48 bg-slate-200 rounded-lg"></div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        }>
+            <LibraryPageContent />
+        </Suspense>
+    )
+}
+
+function LibraryPageContent() {
+    const searchParams = useSearchParams()
+    const initialSearch = useMemo(() => searchParams.get("search") || "", [searchParams])
+    
     const [activeCategory, setActiveCategory] = useState("Tous")
-    const [searchQuery, setSearchQuery] = useState("")
+    const [searchQuery, setSearchQuery] = useState(initialSearch)
     const [documents, setDocuments] = useState<Document[]>(mockDocuments)
     const [loading, setLoading] = useState(true)
+    const [isConnected, setIsConnected] = useState(false)
+    const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+    const eventSourceRef = useRef<EventSource | null>(null)
 
+    // Fonction pour charger les documents depuis l'API
+    async function fetchDocuments() {
+        try {
+            const params = new URLSearchParams({
+                category: activeCategory === "Tous" ? "" : activeCategory,
+                search: searchQuery,
+                published: 'true'
+            }).toString()
+
+            const response = await fetch(`/api/documents/list?${params}`)
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`)
+            }
+            
+            const data = await response.json()
+            
+            if (data.success && Array.isArray(data.data)) {
+                setDocuments(data.data)
+            } else {
+                setDocuments(mockDocuments)
+            }
+        } catch (error) {
+            console.error("Erreur fetch documents:", error)
+            setDocuments(mockDocuments)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // ============================================
+    // SSE - Server-Sent Events pour temps réel
+    // ============================================
     useEffect(() => {
-        async function fetchDocuments() {
+        // Se connecter au flux SSE
+        const connectSSE = () => {
             try {
-                const params = new URLSearchParams({
-                    category: activeCategory === "Tous" ? "" : activeCategory,
-                    search: searchQuery,
-                }).toString()
+                const eventSource = new EventSource('/api/sse/documents')
+                eventSourceRef.current = eventSource
 
-                const response = await fetch(`/api/documents/list?${params}`)
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`)
+                eventSource.onopen = () => {
+                    console.log('✅ Connecté au flux temps réel')
+                    setIsConnected(true)
                 }
-                
-                const data = await response.json()
-                
-                // L'API retourne { success: true, data: documents, pagination: {...} }
-                if (data.success && Array.isArray(data.data)) {
-                    setDocuments(data.data)
-                } else {
-                    console.warn("Format de réponse inattendu, utilisation des données mockées:", data)
-                    setDocuments(mockDocuments)
+
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data)
+                        
+                        // Ignorer les heartbeats et messages de connexion
+                        if (data.type === 'heartbeat' || data.type === 'connected') {
+                            return
+                        }
+                        
+                        console.log('📡 Mise à jour reçue:', data)
+                        setLastUpdate(new Date())
+                        
+                        // Rafraîchir les données
+                        fetchDocuments()
+                        
+                        // Notification optionnelle
+                        if (data.type?.includes('published') || data.type?.includes('unpublished')) {
+                            toast.info('Mise à jour de la bibliothèque détectée', {
+                                description: 'Les documents ont été modifiés par un administrateur',
+                                duration: 3000
+                            })
+                        }
+                    } catch (error) {
+                        console.error('Erreur parsing SSE:', error)
+                    }
+                }
+
+                eventSource.onerror = (error) => {
+                    console.error('Erreur SSE:', error)
+                    setIsConnected(false)
+                    eventSource.close()
+                    
+                    // Reconnexion après 5 secondes
+                    setTimeout(() => {
+                        if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
+                            connectSSE()
+                        }
+                    }, 5000)
                 }
             } catch (error) {
-                console.error("Erreur fetch documents, utilisation des données mockées:", error)
-                setDocuments(mockDocuments)
-            } finally {
-                setLoading(false)
+                console.error('Erreur connexion SSE:', error)
             }
         }
+
+        // Initial fetch
+        fetchDocuments()
+        
+        // Connect SSE
+        connectSSE()
+
+        // Cleanup
+        return () => {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close()
+                eventSourceRef.current = null
+            }
+        }
+    }, []) // Run once on mount
+
+    // Also fetch when filters change
+    useEffect(() => {
         fetchDocuments()
     }, [activeCategory, searchQuery])
 
@@ -74,8 +188,46 @@ export default function LibraryPage() {
         return matchesCategory && matchesSearch
     }) : []
 
+    // Fonction de téléchargement
+    const handleDownload = (doc: Document) => {
+        // Priorité: downloadUrl > fileUrl
+        const url = doc.downloadUrl || doc.fileUrl
+        if (url) {
+            window.open(url, '_blank')
+            toast.success(`Téléchargement de "${doc.title}"started`)
+        } else {
+            toast.error('Téléchargement non disponible pour ce document')
+        }
+    }
+
     return (
         <div className="container mx-auto px-4 py-12 md:py-20 lg:max-w-7xl">
+            {/* Indicateur de connexion temps réel */}
+            <div className="fixed bottom-4 right-4 z-50">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm ${
+                    isConnected 
+                        ? 'bg-green-100 text-green-800 border border-green-300' 
+                        : 'bg-gray-100 text-gray-800 border border-gray-300'
+                }`}>
+                    {isConnected ? (
+                        <>
+                            <Wifi className="w-4 h-4" />
+                            <span>Temps réel</span>
+                            {lastUpdate && (
+                                <span className="text-xs opacity-75">
+                                    • {lastUpdate.toLocaleTimeString()}
+                                </span>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <WifiOff className="w-4 h-4" />
+                            <span>Hors ligne</span>
+                        </>
+                    )}
+                </div>
+            </div>
+
             <div className="text-center space-y-6 mb-12">
                 <h1 className="text-4xl font-bold font-montserrat text-primary-dark">Bibliothèque Numérique</h1>
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto font-lato">
@@ -137,7 +289,12 @@ export default function LibraryPage() {
                                                 <span>{doc.date}</span>
                                             </div>
                                         </div>
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 text-primary hover:text-primary-dark hover:bg-primary/10">
+                                        <Button 
+                                            size="icon" 
+                                            variant="ghost" 
+                                            className="h-10 w-10 text-primary hover:text-primary-dark hover:bg-primary/10"
+                                            onClick={() => handleDownload(doc)}
+                                        >
                                             <Download className="w-5 h-5" />
                                         </Button>
                                     </CardContent>

@@ -35,12 +35,14 @@ export interface Document {
 }
 
 export enum DocumentCategory {
-  STATUTS = 'STATUTS',
-  RAPPORTS = 'RAPPORTS',
-  GUIDES = 'GUIDES',
+  ADMINISTRATIF = 'ADMINISTRATIF',
   ACADEMIQUE = 'ACADEMIQUE',
   JURIDIQUE = 'JURIDIQUE',
-  ADMINISTRATIF = 'ADMINISTRATIF'
+  RAPPORT = 'RAPPORT',
+  GUIDE = 'GUIDE',
+  LIVRE = 'LIVRE',
+  ARTICLE = 'ARTICLE',
+  STATUTS = 'STATUTS'
 }
 
 export enum DocumentVisibility {

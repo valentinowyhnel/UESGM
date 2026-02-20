@@ -8,34 +8,54 @@ import {
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { emitAdminEventEvent } from '@/lib/sse'
 
 // Schéma de validation pour la création d'événement
+// Accepte soit une date ISO complète soit une date simple (YYYY-MM-DD)
+const dateSchema = z.string().refine((val) => {
+  // Accepte YYYY-MM-DD ou ISO datetime
+  return /^\d{4}-\d{2}-\d{2}$/.test(val) || !isNaN(Date.parse(val))
+}, {
+  message: 'Date invalide'
+})
+
+// Accepte URL complète ou chemin relatif
+const urlSchema = z.string().refine(
+  (val) => val.startsWith('http') || val.startsWith('/'),
+  { message: 'URL invalide' }
+)
+
 const CreateEventSchema = z.object({
   title: z.string().min(3, "Le titre doit contenir au moins 3 caractères"),
-  description: z.string().min(10, "La description doit contenir au moins 10 caractères"),
-  location: z.string().min(2, "Le lieu est requis"),
+  description: z.string().min(3, "La description doit contenir au moins 3 caractères"),
+  location: z.string().optional().or(z.string().min(1, "Le lieu est requis")),
   category: z.enum(['INTEGRATION', 'ACADEMIC', 'SOCIAL', 'CULTURAL']),
-  startDate: z.string().datetime("Date de début invalide"),
-  endDate: z.string().datetime().optional(),
+  startDate: dateSchema,
+  endDate: dateSchema.optional(),
   maxAttendees: z.number().int().positive().optional(),
-  imageUrl: z.string().url().optional(),
-  publishMode: z.enum(['NOW', 'SCHEDULED']),
-  publishedAt: z.string().datetime().optional(),
+  imageUrl: urlSchema.optional().nullable(),
+  images: z.array(urlSchema).optional(),
+  publishMode: z.enum(['NOW', 'SCHEDULED']).optional(),
+  publishedAt: z.string().optional(),
+  published: z.boolean().optional(),
   antenneIds: z.array(z.string()).optional()
 })
 
 // Schéma de validation pour la mise à jour
 const UpdateEventSchema = z.object({
   title: z.string().min(3).optional(),
-  description: z.string().min(10).optional(),
-  location: z.string().min(2).optional(),
+  description: z.string().min(3).optional(),
+  location: z.string().optional().or(z.string().min(1)),
   category: z.enum(['INTEGRATION', 'ACADEMIC', 'SOCIAL', 'CULTURAL']).optional(),
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
+  startDate: dateSchema.optional(),
+  endDate: dateSchema.optional(),
   maxAttendees: z.number().int().positive().optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: urlSchema.optional().nullable(),
+  images: z.array(urlSchema).optional(),
+  publishMode: z.enum(['NOW', 'SCHEDULED']).optional(),
+  publishedAt: z.string().optional(),
+  published: z.boolean().optional(),
   status: z.enum(['DRAFT', 'SCHEDULED', 'PUBLISHED', 'ARCHIVED']).optional(),
-  publishedAt: z.string().datetime().optional(),
   antenneIds: z.array(z.string()).optional()
 })
 
@@ -82,7 +102,7 @@ export const GET = withAdminAuth(async (req: NextRequest, user) => {
             select: { id: true, name: true, email: true }
           },
           _count: {
-            select: { attendees: true }
+            select: { registrations: true }
           }
         },
         orderBy: [
@@ -154,7 +174,7 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
       )
     }
 
-    const { title, description, location, category, startDate, endDate, maxAttendees, imageUrl, publishMode, publishedAt, antenneIds } = validation.data
+    const { title, description, location, category, startDate, endDate, maxAttendees, imageUrl, images, publishMode, publishedAt, published, antenneIds } = validation.data
 
     // Validation des dates
     const start = new Date(startDate)
@@ -165,6 +185,11 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
         { status: 400 }
       )
     }
+
+    // Utiliser la première image du tableau si imageUrl n'est pas fourni
+    const finalImageUrl = imageUrl || (images && images.length > 0 ? images[0] : null)
+    // Assurer que location a une valeur (requis par Prisma)
+    const finalLocation = location && location.trim() ? location.trim() : 'À confirmer'
 
     // Génération du slug unique
     let slug = title.toLowerCase()
@@ -181,15 +206,34 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
     }
 
     // Déterminer le statut et la date de publication
+    // Par défaut : DRAFT (brouillon)
     let status: 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' = 'DRAFT'
     let finalPublishedAt: Date | null = null
 
+    // Si publishMode est fourni (publication immédiate ou programmée)
     if (publishMode === 'NOW') {
       status = 'PUBLISHED'
       finalPublishedAt = new Date()
     } else if (publishMode === 'SCHEDULED' && publishedAt) {
       status = 'SCHEDULED'
       finalPublishedAt = new Date(publishedAt)
+    }
+    // Sinon reste en DRAFT (brouillon)
+
+    // Créer les relations EventAntenne pour les antennes sélectionnées
+    let eventAntenneData: { eventId: string; antenneId: string }[] = []
+    if (antenneIds && antenneIds.length > 0) {
+      // Vérifier que les antennes existent dans la base
+      const existingAntennes = await prisma.antenne.findMany({
+        where: { id: { in: antenneIds } },
+        select: { id: true }
+      })
+      const validAntenneIds = existingAntennes.map(a => a.id)
+      // Créer les données pour EventAntenne (sans créer l'événement encore)
+      eventAntenneData = validAntenneIds.map(antenneId => ({
+        eventId: '', // temporaire, sera mis à jour après
+        antenneId
+      }))
     }
 
     // Création de l'événement
@@ -198,34 +242,52 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
         title,
         slug,
         description,
-        location,
+        location: finalLocation,
         category,
         startDate: start,
         endDate: end,
         maxAttendees,
-        imageUrl,
+        imageUrl: finalImageUrl,
         status,
         publishedAt: finalPublishedAt,
-        createdById: user.id,
-        antennes: antenneIds && antenneIds.length > 0 ? {
-          connect: antenneIds.map(id => ({ id }))
-        } : undefined
+        createdById: user.id
       },
       include: {
         createdBy: {
           select: { id: true, name: true, email: true }
         },
         _count: {
-          select: { attendees: true }
+          select: { registrations: true }
         }
       }
     })
 
+    // Créer les relations EventAntenne si des antennes ont été sélectionnées
+    if (eventAntenneData.length > 0) {
+      await prisma.eventAntenne.createMany({
+        data: eventAntenneData.map(ea => ({
+          eventId: newEvent.id,
+          antenneId: ea.antenneId
+        }))
+      })
+    }
+
     // Revalidation du cache pour mise à jour immédiate
+    revalidatePath('/admin/evenements')
     if (status === 'PUBLISHED') {
       revalidatePath('/events')
-      revalidatePath('/admin/evenements')
     }
+
+    // Émettre un événement SSE pour mettre à jour les clients en temps réel
+    emitAdminEventEvent('event:created', {
+      id: newEvent.id,
+      title: newEvent.title,
+      slug: newEvent.slug,
+      status: newEvent.status,
+      category: newEvent.category,
+      startDate: newEvent.startDate.toISOString(),
+      updatedAt: newEvent.updatedAt.toISOString()
+    })
 
     // Logging de l'action
     await logAdminAction(
@@ -333,15 +395,17 @@ export const PUT = withAdminAuth(async (req: NextRequest, user) => {
           select: { id: true, name: true, email: true }
         },
         _count: {
-          select: { attendees: true }
+          select: { registrations: true }
         }
       }
     })
 
-    // Revalidation du cache si publication
-    if (updates.status === 'PUBLISHED' || existingEvent.status !== 'PUBLISHED' && updates.status === 'PUBLISHED') {
+    // Revalidation du cache
+    revalidatePath('/admin/evenements')
+    // Revalider les pages publiques si l'événement est publié
+    const finalStatus = updates.status || existingEvent.status
+    if (finalStatus === 'PUBLISHED') {
       revalidatePath('/events')
-      revalidatePath('/admin/evenements')
       revalidatePath(`/events/${eventId}`)
     }
 

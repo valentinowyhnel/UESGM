@@ -4,42 +4,28 @@ import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { prisma } from "@/lib/prisma"
 
-// Données statiques
-const projects = [
-    {
-        id: 1,
-        title: "Guide de l'Étudiant 2026",
-        slug: "guide-etudiant-2026",
-        status: "IN_PROGRESS",
-        progress: 75,
-        category: "Éducation",
-        description: "Rédaction et mise à jour du guide d'accueil pour les nouveaux étudiants gabonais au Maroc.",
-        tags: ["Documentation", "Accueil"]
-    },
-    {
-        id: 2,
-        title: "Partenariat Assurance Santé",
-        slug: "partenariat-assurance-sante",
-        status: "PLANNED",
-        progress: 10,
-        category: "Santé",
-        description: "Négociation d'une convention avec une compagnie d'assurance pour une couverture santé abordable.",
-        tags: ["Social", "Santé"]
-    },
-    {
-        id: 3,
-        title: "Rénovation Bibliothèque Rabat",
-        slug: "renovation-bibliotheque-rabat",
-        status: "COMPLETED",
-        progress: 100,
-        category: "Infrastructure",
-        description: "Aménagement d'un nouvel espace de travail pour les étudiants au siège de l'UESGM.",
-        tags: ["Siège", "Équipement"]
-    }
-]
+// Récupérer les projets depuis la base de données
+async function getProjects() {
+  try {
+    const projects = await prisma.project.findMany({
+      where: { isPublished: true },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      include: {
+        tags: true
+      }
+    })
+    return projects
+  } catch (error) {
+    console.error('Erreur lors de la récupération des projets:', error)
+    return []
+  }
+}
 
-export default function ProjectsPage() {
+export default async function ProjectsPage() {
+  const projects = await getProjects()
     return (
         <div className="container mx-auto px-4 py-12 md:py-20 lg:max-w-6xl">
             <div className="text-center space-y-6 mb-16">
@@ -80,8 +66,8 @@ export default function ProjectsPage() {
                             </div>
 
                             <div className="flex flex-wrap gap-2 pt-2">
-                                {project.tags.map(tag => (
-                                    <span key={tag} className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md text-slate-600 dark:text-slate-400">#{tag}</span>
+                                {(project.tags || []).map((tag: any) => (
+                                    <span key={tag.id} className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md text-slate-600 dark:text-slate-400">#{tag.name}</span>
                                 ))}
                             </div>
                         </CardContent>

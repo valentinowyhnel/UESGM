@@ -93,6 +93,33 @@ export default function AdminEventsPage() {
         loadEvents()
     }, [searchTerm, selectedStatus, selectedCategory, currentPage])
 
+    // SSE pour les mises à jour en temps réel
+    useEffect(() => {
+        let eventSource: EventSource | null = null
+
+        const connectSSE = () => {
+            eventSource = new EventSource('/api/sse/events')
+            eventSource.onopen = () => {
+                console.log('✅ Connecté au flux SSE des événements')
+            }
+            eventSource.onmessage = (event) => {
+                console.log('📡 Mise à jour reçue:', event.data)
+                loadEvents()
+            }
+            eventSource.onerror = () => {
+                console.log('❌ Erreur SSE, reconnexion...')
+                eventSource?.close()
+                setTimeout(connectSSE, 5000)
+            }
+        }
+
+        connectSSE()
+
+        return () => {
+            eventSource?.close()
+        }
+    }, [])
+
     const loadEvents = async () => {
         try {
             setLoading(true)

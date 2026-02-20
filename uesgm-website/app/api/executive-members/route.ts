@@ -75,3 +75,101 @@ export async function POST(req: Request) {
     )
   }
 }
+
+// PUT - Mettre à jour un membre (admin uniquement)
+export async function PUT(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    const userRole = (session?.user as any)?.role
+    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
+    }
+
+    const body = await req.json()
+    const { id, ...updateData } = body
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'ID du membre requis' },
+        { status: 400 }
+      )
+    }
+
+    const updateSchema = ExecutiveMemberSchema.partial()
+    const validatedData = updateSchema.parse(updateData)
+
+    const member = await prisma.executiveMember.update({
+      where: { id },
+      data: validatedData,
+    })
+
+    return NextResponse.json(
+      { success: true, data: member }
+    )
+  } catch (error: any) {
+    console.error('❌ Erreur PUT /api/executive-members:', error)
+    if (error.name === 'ZodError') {
+      return NextResponse.json(
+        { error: 'Données invalides', details: error.errors },
+        { status: 400 }
+      )
+    }
+    if (error.code === 'P2025') {
+      return NextResponse.json(
+        { error: 'Membre non trouvé' },
+        { status: 404 }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE - Supprimer un membre (admin uniquement)
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    const userRole = (session?.user as any)?.role
+    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
+    }
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'ID du membre requis' },
+        { status: 400 }
+      )
+    }
+
+    await prisma.executiveMember.delete({
+      where: { id }
+    })
+
+    return NextResponse.json(
+      { success: true, message: 'Membre supprimé avec succès' }
+    )
+  } catch (error: any) {
+    console.error('❌ Erreur DELETE /api/executive-members:', error)
+    if (error.code === 'P2025') {
+      return NextResponse.json(
+        { error: 'Membre non trouvé' },
+        { status: 404 }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
+  }
+}

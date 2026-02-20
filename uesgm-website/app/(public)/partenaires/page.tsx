@@ -53,6 +53,7 @@ export default function PartnersPage() {
                             name="Association Culturelle Gabonaise du Maroc (ACGM)" 
                             description="Partenariat culturel"
                             website="#"
+                            image="/images/Association Culturelle Gabonaise du Maroc (ACGM).jpg"
                         />
                         <PartnerCard 
                             name="CESAM" 

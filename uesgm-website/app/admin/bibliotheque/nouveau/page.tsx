@@ -20,8 +20,10 @@ import Link from "next/link"
 
 const categoryConfig = {
     STATUTS: { label: "Statuts", color: "bg-blue-100 text-blue-800" },
-    RAPPORTS: { label: "Rapports", color: "bg-green-100 text-green-800" },
-    GUIDES: { label: "Guides", color: "bg-purple-100 text-purple-800" },
+    RAPPORT: { label: "Rapports", color: "bg-green-100 text-green-800" },
+    GUIDE: { label: "Guides", color: "bg-purple-100 text-purple-800" },
+    LIVRE: { label: "Livres", color: "bg-yellow-100 text-yellow-800" },
+    ARTICLE: { label: "Articles", color: "bg-pink-100 text-pink-800" },
     ACADEMIQUE: { label: "Académique", color: "bg-orange-100 text-orange-800" },
     JURIDIQUE: { label: "Juridique", color: "bg-red-100 text-red-800" },
     ADMINISTRATIF: { label: "Administratif", color: "bg-gray-100 text-gray-800" },
@@ -205,10 +207,12 @@ export default function NouveauDocumentPage() {
             }
 
             const result = await response.json()
-            if (!result.fileUrl) {
+            // Handle different response formats from upload APIs
+            const fileUrl = result.fileUrl || result.url || result.uploadUrl
+            if (!fileUrl) {
                 throw new Error("URL du fichier manquante dans la réponse")
             }
-            return result.fileUrl
+            return fileUrl
         } catch (error) {
             console.error("Upload error:", error)
             toast.error("Erreur lors de l'upload du fichier")
@@ -434,14 +438,14 @@ export default function NouveauDocumentPage() {
                                     type="file"
                                     onChange={handleFileInputChange}
                                     accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.txt"
-                                    className="hidden"
+                                    className="sr-only"
                                     id="file-upload"
                                     title="Sélectionner un fichier à uploader"
                                 />
-                                <Label htmlFor="file-upload">
-                                    <Button type="button" variant="outline" className="cursor-pointer">
+                                <Label htmlFor="file-upload" className="cursor-pointer">
+                                    <span className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors inline-block">
                                         Parcourir les fichiers
-                                    </Button>
+                                    </span>
                                 </Label>
                                 <div className="mt-4 text-xs text-gray-500">
                                     Formats acceptés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, JPG, PNG, GIF, TXT<br />

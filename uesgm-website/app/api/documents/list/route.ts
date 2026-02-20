@@ -19,7 +19,7 @@ type ExtendedSession = Awaited<ReturnType<typeof getServerSession>> & {
 const DocumentSchema = z.object({
   title: z.string().min(5).max(200),
   description: z.string().max(1000).optional(),
-  category: z.enum(['STATUTS', 'RAPPORTS', 'GUIDES', 'LIVRES', 'ARTICLES', 'PROJETS_SCIENTIFIQUES']),
+  category: z.enum(['STATUTS', 'RAPPORT', 'GUIDE', 'LIVRE', 'ARTICLE', 'ACADEMIQUE', 'JURIDIQUE', 'ADMINISTRATIF']),
   fileUrl: z.string().url(),
   fileType: z.string(),
   fileSize: z.number().int().positive().optional(),
@@ -34,11 +34,34 @@ const DocumentSchema = z.object({
   createdBy: z.string().optional()
 });
 
+// Mapping des catégories depuis les valeurs françaises vers les valeurs enum
+const categoryLabelToEnum: Record<string, string> = {
+  'statuts': 'STATUTS',
+  'rapports': 'RAPPORT',
+  'rapport': 'RAPPORT',
+  'guides': 'GUIDE',
+  'guide': 'GUIDE',
+  'livres': 'LIVRE',
+  'livre': 'LIVRE',
+  'articles': 'ARTICLE',
+  'article': 'ARTICLE',
+  'académique': 'ACADEMIQUE',
+  'academique': 'ACADEMIQUE',
+  'juridique': 'JURIDIQUE',
+  'administratif': 'ADMINISTRATIF',
+}
+
+function normalizeCategory(value: string | null): string {
+  if (!value || value === 'all' || value === '') return 'all'
+  const normalized = value.toLowerCase().trim()
+  return categoryLabelToEnum[normalized] || value.toUpperCase()
+}
+
 // Query parameters schema
 const DocumentQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   per: z.coerce.number().min(1).max(50).default(10),
-  category: z.enum(['STATUTS', 'RAPPORTS', 'GUIDES', 'LIVRES', 'ARTICLES', 'PROJETS_SCIENTIFIQUES', 'all']).default('all'),
+  category: z.string().default('all'),
   published: z.enum(['true', 'false', 'all']).default('all'),
   search: z.string().optional(),
   tags: z.string().optional(),
@@ -51,20 +74,35 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const query = DocumentQuerySchema.parse(Object.fromEntries(searchParams))
 
+    // Vérifier la session pour déterminer si l'utilisateur est authentifié
+    const session = await getServerSession(authOptions) as ExtendedSession | null;
+    const userRole = session?.user?.role;
+    const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN';
+    
+    // Pour les utilisateurs non-admin, force always published=true for public access
+    // Seul les admins peuvent voir les documents non publiés
+    let publishedFilter = query.published;
+    if (!isAdmin) {
+      publishedFilter = 'true'; // Force published for public users
+    }
+
     const where: any = {}
     
     // Filtres
-    if (query.category !== 'all') {
-      where.category = query.category
+    const normalizedCategory = normalizeCategory(query.category)
+    if (normalizedCategory !== 'all') {
+      where.category = normalizedCategory
     }
     
-    if (query.published !== 'all') {
-      where.published = query.published === 'true'
+    // Apply published filter (enforced to 'true' for non-admin users)
+    // Note: Prisma schema uses 'isPublished' field
+    if (publishedFilter !== 'all') {
+      where.isPublished = publishedFilter === 'true'
     }
     
     if (query.antenneId) {
       where.antennes = {
-        some: { id: query.antenneId }
+        some: { antenneId: query.antenneId }
       }
     }
     
@@ -86,7 +124,7 @@ export async function GET(req: Request) {
       where.tags = { hasSome: tagList }
     }
 
-    // Vérifier d'abord si la table existe
+    // Vérifier d'abord si la table existe (case-insensitive)
     interface TableExistsResult {
       exists: boolean;
     }
@@ -95,7 +133,7 @@ export async function GET(req: Request) {
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name = 'Document'
+        AND table_name IN ('documents', 'Document', 'document')
       ) as "exists"
     `
 
@@ -119,9 +157,9 @@ export async function GET(req: Request) {
           skip: (query.page - 1) * query.per,
           take: query.per,
           include: {
-            AntenneDocument: {
+            antennes: {
               select: { 
-                Antenne: {
+                antenne: {
                   select: { id: true, city: true }
                 }
               }
@@ -245,9 +283,9 @@ export async function POST(req: Request) {
           user: {
             select: { id: true, name: true, email: true }
           },
-          AntenneDocument: {
+          antennes: {
             include: {
-              Antenne: {
+              antenne: {
                 select: { id: true, city: true }
               }
             }
@@ -262,6 +300,86 @@ export async function POST(req: Request) {
     );
   } catch (error: any) {
     console.error('❌ Erreur POST /api/documents:', error);
+    
+    if (error.name === 'ZodError') {
+      return NextResponse.json(
+        { error: 'Données invalides', details: error.errors },
+        { status: 400 }
+      )
+    }
+    if (error.code === 'P2025') {
+      return NextResponse.json(
+        { error: 'Document non trouvé' },
+        { status: 404 }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT - Mettre à jour un document (admin uniquement)
+export async function PUT(req: Request) {
+  try {
+    const session = await getServerSession(authOptions) as ExtendedSession | null;
+    const userRole = session?.user?.role;
+    
+    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+    const { id, ...updateData } = body;
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'ID du document requis' },
+        { status: 400 }
+      );
+    }
+
+    const updateSchema = DocumentSchema.partial();
+    const validatedData = updateSchema.parse(updateData);
+
+    // Use a transaction to ensure data consistency
+    const result = await prisma.$transaction(async (tx: any) => {
+      // Update the document
+      const doc = await tx.document.update({
+        where: { id },
+        data: {
+          ...validatedData,
+          slug: validatedData.slug || undefined,
+        }
+      });
+
+      // Return the updated document with relations
+      return tx.document.findUnique({
+        where: { id: doc.id },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true }
+          },
+          antennes: {
+            include: {
+              antenne: {
+                select: { id: true, city: true }
+              }
+            }
+          }
+        }
+      });
+    });
+
+    return NextResponse.json(
+      { success: true, data: result }
+    );
+  } catch (error: any) {
+    console.error('❌ Erreur PUT /api/documents:', error);
     
     if (error.name === 'ZodError') {
       return NextResponse.json(

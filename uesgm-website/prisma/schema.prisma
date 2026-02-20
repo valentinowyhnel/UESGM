@@ -1,3 +1,8 @@
+// ============================================
+// SCHÉMA DE BASE DE DONNÉES UESGM - PRISMA
+// Union des Étudiants et Stagiaires Gabonais au Maroc
+// ============================================
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,151 +12,409 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  name      String?
-  role      Role       @default(MEMBER)
-  password  String
-  image     String?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  documents Document[] @relation("DocumentCreatedBy")
-  events    Event[]    @relation("EventCreatedBy")
-  projects  Project[]  @relation("ProjectCreatedBy")
+// ============================================
+// UTILISATEURS ET AUTHENTIFICATION
+// ============================================
 
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  role          Role      @default(MEMBER)
+  password      String? // Optionnel pour OAuth
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Sécurité - Tentatives de connexion
+  failedLoginAttempts Int      @default(0) // Nombre de tentatives échouées
+  lockoutUntil        DateTime? // Date de déblocage après verrouillage
+  lastLoginAt        DateTime? // Dernière connexion réussie
+
+  // Relations
+  documents   Document[]           @relation("DocumentCreatedBy")
+  events      Event[]              @relation("EventCreatedBy")
+  projects    Project[]            @relation("ProjectCreatedBy")
+  newsletters NewsletterCampaign[] @relation("NewsletterCreatedBy")
+  auditLogs   AuditLog[]
+  sessions    Session[]
+  accounts    Account[]
+
+  @@index([email])
+  @@index([role])
   @@map("users")
 }
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================
+// MEMBRES DU BUREAU EXÉCUTIF
+// ============================================
 
 model ExecutiveMember {
   id        String   @id @default(cuid())
   name      String
   position  String
-  email     String?
+  email     String?  @unique
   phone     String?
   photo     String?
   order     Int      @default(0)
+  bio       String?
+  facebook  String?
+  linkedin  String?
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([position])
+  @@index([order])
+  @@map("executive_members")
 }
+
+// ============================================
+// ANTENNES RÉGIONALES
+// ============================================
 
 model Antenne {
-  id              String            @id @default(cuid())
-  city            String
-  responsable     String
-  email           String?
-  phone           String?
-  address         String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  AntenneDocument AntenneDocument[]
-  eventAntennes   EventAntenne[]    @relation("AntenneToEventAntenne")
-  events          Event[]           @relation("AntenneToEvent")
+  id          String   @id @default(cuid())
+  name        String
+  city        String
+  country     String   @default("Gabon")
+  email       String?
+  phone       String?
+  address     String?
+  description String?
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  memberCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  documents    AntenneDocument[]
+  events       EventAntenne[]
+  antenneStats AntenneStat[]
+
+  @@unique([city])
+  @@index([country])
+  @@index([isActive])
+  @@map("antennes")
 }
 
+model AntenneStat {
+  id          String   @id @default(cuid())
+  antenneId   String
+  antenne     Antenne  @relation(fields: [antenneId], references: [id], onDelete: Cascade)
+  month       Int // 1-12
+  year        Int
+  memberCount Int      @default(0)
+  eventCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([antenneId, month, year])
+  @@index([antenneId])
+  @@map("antenne_stats")
+}
+
+// ============================================
+// ÉVÉNEMENTS
+// ============================================
+
 model Event {
-  id            String              @id @default(cuid())
-  title         String
-  description   String
-  location      String
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  id           String        @id @default(cuid())
+  title        String
+  description  String
+  location     String
+  startDate    DateTime
+  endDate      DateTime?
+  imageUrl     String?
+  maxAttendees Int?
+  slug         String        @unique
+  status       EventStatus   @default(DRAFT)
+  category     EventCategory
+  publishedAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relations
   createdById   String
-  endDate       DateTime?
-  imageUrl      String?
-  maxAttendees  Int?
-  slug          String              @unique
-  startDate     DateTime
-  status        EventStatus         @default(DRAFT)
-  category      EventCategory
-  publishedAt   DateTime?
   createdBy     User                @relation("EventCreatedBy", fields: [createdById], references: [id])
-  eventAntennes EventAntenne[]      @relation("EventToEventAntenne")
-  attendees     EventRegistration[]
-  antennes      Antenne[]           @relation("AntenneToEvent")
+  registrations EventRegistration[]
+  antennes      EventAntenne[]
+
+  // Computed count (will be generated by Prisma)
+  // @relation("EventAttendees", fields: [id], references: [id])
 
   @@index([status, startDate])
   @@index([publishedAt])
   @@index([createdById])
   @@index([category])
+  @@index([slug])
+  @@map("events")
 }
 
+model EventRegistration {
+  id        String             @id @default(cuid())
+  eventId   String
+  event     Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  email     String
+  name      String
+  phone     String?
+  status    RegistrationStatus @default(PENDING)
+  createdAt DateTime           @default(now())
+
+  @@unique([eventId, email])
+  @@index([eventId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("event_registrations")
+}
+
+model EventAntenne {
+  id         String   @id @default(cuid()) // Add id field
+  eventId    String
+  antenneId  String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  antenne    Antenne  @relation(fields: [antenneId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, antenneId])
+  @@map("event_antennes")
+}
+
+// ============================================
+// PROJETS
+// ============================================
+
 model Project {
-  id          String            @id @default(cuid())
+  id          String          @id @default(cuid())
   title       String
+  slug        String          @unique
   description String
-  status      ProjectStatus     @default(PLANNED)
-  startDate   DateTime?
-  endDate     DateTime?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  slug        String            @unique
-  createdById String
-  imageUrl    String?
-  isPublished Boolean           @default(false)
-  progress    Int               @default(0)
   shortDesc   String
   category    ProjectCategory
-  createdBy   User              @relation("ProjectCreatedBy", fields: [createdById], references: [id])
-  auditLogs   ProjectAuditLog[] @relation("ProjectAuditRelation")
+  status      ProjectStatus   @default(PLANNED)
+  progress    Int             @default(0)
+  imageUrl    String?
+  startDate   DateTime?
+  endDate     DateTime?
+  isPublished Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Relations
+  createdById String
+  createdBy   User         @relation("ProjectCreatedBy", fields: [createdById], references: [id])
   tags        ProjectTag[]
+  milestones  Milestone[]
+  auditLogs   AuditLog[]   @relation("ProjectAuditRelation")
 
   @@index([status, category])
   @@index([createdById])
   @@index([isPublished])
+  @@index([slug])
+  @@map("projects")
 }
 
-model Document {
-  id              String             @id @default(cuid())
-  title           String
-  description     String?
-  category        DocumentCategory
-  fileUrl         String
-  fileSize        Int
-  fileName        String
-  mimeType        String
-  downloads       Int                @default(0)
-  isPublished     Boolean            @default(false)
-  slug            String             @unique
-  version         Int                @default(1)
-  visibility      DocumentVisibility @default(PUBLIC)
-  tags            String[]           // Anciennement DocumentTag[]
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  
-  // Relations
-  createdById     String
-  createdBy       User               @relation("DocumentCreatedBy", fields: [createdById], references: [id])
-  AntenneDocument AntenneDocument[]
-  versions        DocumentVersion[]
-    tags        DocumentTag[]
+model ProjectTag {
+  id        String  @id @default(cuid())
+  name      String
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  // Indexes
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("project_tags")
+}
+
+model Milestone {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      MilestoneStatus @default(PENDING)
+  projectId   String
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@map("milestones")
+}
+
+// ============================================
+// DOCUMENTS
+// ============================================
+
+model Document {
+  id          String             @id @default(cuid())
+  title       String
+  slug        String             @unique
+  description String?
+  category    DocumentCategory
+  visibility  DocumentVisibility @default(PUBLIC)
+  canDownload Boolean           @default(true)  // Permission de téléchargement
+  fileUrl     String
+  fileName    String
+  fileSize    Int
+  mimeType    String
+  version     Int                @default(1)
+  downloads   Int                @default(0)
+  isPublished Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  // Relations
+  createdById String
+  createdBy   User              @relation("DocumentCreatedBy", fields: [createdById], references: [id])
+  antennes    AntenneDocument[]
+  tags        DocumentTag[]
+  versions    DocumentVersion[]
+
   @@index([category, visibility])
   @@index([isPublished])
   @@index([createdById])
+  @@index([slug])
   @@index([category])
   @@map("documents")
 }
 
+model DocumentTag {
+  id         String   @id @default(cuid())
+  name       String
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, name])
+  @@index([documentId])
+  @@map("document_tags")
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  fileUrl    String
+  version    Int
+  changelog  String?
+  createdAt  DateTime @default(now())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([version])
+  @@map("document_versions")
+}
+
+model AntenneDocument {
+  documentId String
+  antenneId  String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  antenne    Antenne  @relation(fields: [antenneId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, antenneId])
+  @@map("antenne_documents")
+}
+
+// ============================================
+// PARTENAIRES
+// ============================================
+
 model Partner {
   id          String      @id @default(cuid())
-  name        String
+  name        String      @unique
   logo        String?
   website     String?
   type        PartnerType
   description String?
   order       Int         @default(0)
+  isActive    Boolean     @default(true)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+  @@index([order])
+  @@map("partners")
 }
 
+// ============================================
+// NEWSLETTER
+// ============================================
+
 model Newsletter {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  email      String    @unique
+  isActive   Boolean   @default(true)
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([isActive])
+  @@map("newsletter_subscribers")
 }
+
+model NewsletterCampaign {
+  id             String         @id @default(cuid())
+  subject        String
+  content        String         @db.Text
+  status         CampaignStatus @default(DRAFT)
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  recipientCount Int            @default(0)
+  openCount      Int            @default(0)
+  clickCount     Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relations
+  createdById String?
+  createdBy   User?   @relation("NewsletterCreatedBy", fields: [createdById], references: [id])
+
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("newsletter_campaigns")
+}
+
+// ============================================
+// MESSAGES DE CONTACT
+// ============================================
 
 model ContactMessage {
   id          String        @id @default(cuid())
@@ -160,184 +423,150 @@ model ContactMessage {
   subject     String?
   message     String
   country     String?
-  createdAt   DateTime      @default(now()) @map("created_at")
   ip          String?
-  processedAt DateTime?     @map("processed_at")
-  spamScore   Float?        @map("spam_score")
+  userAgent   String?
+  spamScore   Float?
   status      MessageStatus @default(PENDING)
-  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
-  userAgent   String?       @map("user_agent")
-}
-
-model Statistics {
-  id            String   @id @default(cuid())
-  totalMembers  Int      @default(0)
-  totalAntennes Int      @default(0)
-  totalEvents   Int      @default(0)
-  updatedAt     DateTime @updatedAt
-}
-
-model AntenneDocument {
-  id         String   @id
-  documentId String
-  antenneId  String
-  Antenne    Antenne  @relation(fields: [antenneId], references: [id], onDelete: Cascade)
-  Document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-
-  @@unique([documentId, antenneId])
-}
-
-model EventRegistration {
-  id        String   @id @default(cuid())
-  eventId   String
-  email     String
-  createdAt DateTime @default(now())
-  name      String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  @@unique([eventId, email])
-  @@index([createdAt])
-  @@index([eventId])
-}
-
-model ProjectAuditLog {
-  id         String   @id
-  projectId  String
-  action     String
-  actorId    String?
-  actorEmail String?
-  snapshot   Json?
-  createdAt  DateTime @default(now())
-  Project    Project  @relation("ProjectAuditRelation", fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@index([createdAt])
-  @@index([projectId])
-}
-
-model EventAntenne {
-  eventId   String
-  antenneId String
-  antenne   Antenne @relation("AntenneToEventAntenne", fields: [antenneId], references: [id], onDelete: Cascade)
-  event     Event   @relation("EventToEventAntenne", fields: [eventId], references: [id], onDelete: Cascade)
-
-  @@id([eventId, antenneId])
-}
-
-model ProjectNew {
-  id          String        @id @default(cuid())
-  title       String
-  slug        String        @unique
-  description String
-  category    String
-  status      ProjectStatus @default(PLANNED)
-  progress    Int           @default(0)
-  createdById String?
+  processedAt DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   @@index([status])
-  @@index([category])
-  @@map("projects")
+  @@index([createdAt])
+  @@index([email])
+  @@map("contact_messages")
 }
 
+// ============================================
+// JOURNAL D'AUDIT
+// ============================================
 
-model EventNew {
+model AuditLog {
   id          String   @id @default(cuid())
-  title       String
+  action      String
+  entityType  String
+  entityId    String?
   description String?
-  category    String
-  date        DateTime
-  location    String
-  image       String?
-  published   Boolean  @default(false)
-  createdById String?
+  changes     Json?
+  ipAddress   String?
+  userAgent   String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
-  @@index([published])
-  @@index([date])
-  @@map("events")
-}
+  // Relations
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  projectId String?
+  project   Project? @relation("ProjectAuditRelation", fields: [projectId], references: [id], onDelete: Cascade)
 
-model NewsletterNew {
-  id          String   @id @default(cuid())
-  subject     String
-  content     String
-  sentAt      DateTime @default(now())
-  createdById String?
-
-  @@map("newsletters")
-}
-
-model AntenneNew {
-  id        String   @id @default(cuid())
-  name      String
-  city      String
-  country   String   @default("Gabon")
-  email     String?
-  phone     String?
-  address   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("antennes")
-}
-
-model ProjectTag {
-  id        String  @id @default(cuid())
-  name      String
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id])
-
-  @@unique([projectId, name])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
   @@index([projectId])
+  @@map("audit_logs")
 }
 
-model DocumentTag {
-  id         String   @id @default(cuid())
-  name       String
-  documentId String
-  document   Document @relation(fields: [documentId], references: [id])
+// ============================================
+// STATISTIQUES
+// ============================================
 
-  @@unique([documentId, name])
-  @@index([documentId])
+model Statistics {
+  id             String   @id @default(cuid())
+  totalMembers   Int      @default(0)
+  totalAntennes  Int      @default(0)
+  totalEvents    Int      @default(0)
+  totalProjects  Int      @default(0)
+  totalDocuments Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@map("statistics")
 }
 
-model DocumentVersion {
-  id         String   @id @default(cuid())
-  fileUrl    String
-  version    Int
-  createdAt  DateTime @default(now())
-  documentId String
-  document   Document @relation(fields: [documentId], references: [id])
+model MonthlyStats {
+  id          String   @id @default(cuid())
+  month       Int // 1-12
+  year        Int
+  newMembers  Int      @default(0)
+  newEvents   Int      @default(0)
+  newProjects Int      @default(0)
+  pageViews   Int      @default(0)
+  createdAt   DateTime @default(now())
 
-  @@index([documentId])
-  @@index([version])
+  @@unique([month, year])
+  @@index([year])
+  @@map("monthly_stats")
 }
 
-enum MessageStatus {
-  PENDING
-  SENT
-  FAILED
-  SPAM
-}
+// ============================================
+// ÉNUMÉRATIONS
+// ============================================
 
 enum Role {
+  MEMBER
   ADMIN
   SUPER_ADMIN
-  MEMBER
+}
+
+enum EventStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+  CANCELLED
+}
+
+enum EventCategory {
+  INTEGRATION
+  ACADEMIC
+  SOCIAL
+  CULTURAL
+  SPORT
+  OTHER
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  ATTENDED
+}
+
+enum ProjectStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  SUSPENDED
+  CANCELLED
+}
+
+enum ProjectCategory {
+  EDUCATION
+  SOCIAL
+  HEALTH
+  DIGITAL
+  PARTNERSHIP
+  ENVIRONMENT
+  CULTURE
+  INFRASTRUCTURE
+  SPORT
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
 }
 
 enum DocumentCategory {
-  STATUTS
-  RAPPORTS
-  GUIDES
-  LIVRES
-  ARTICLES
-  PROJETS_SCIENTIFIQUES
   ADMINISTRATIF
   ACADEMIQUE
   JURIDIQUE
+  RAPPORT
+  GUIDE
+  LIVRE
+  ARTICLE
+  STATUTS
 }
 
 enum DocumentVisibility {
@@ -349,40 +578,21 @@ enum DocumentVisibility {
 enum PartnerType {
   INSTITUTIONAL
   PRIVATE
+  ASSOCIATION
 }
 
-enum EventStatus {
+enum MessageStatus {
+  PENDING
+  READ
+  SENT
+  FAILED
+  SPAM
+}
+
+enum CampaignStatus {
   DRAFT
-  PUBLISHED
-  ARCHIVED
   SCHEDULED
-}
-
-enum EventCategory {
-  INTEGRATION
-  ACADEMIC
-  SOCIAL
-  CULTURAL
-}
-
-enum ProjectStatus {
-  IN_PROGRESS
-  COMPLETED
-  PLANNED
-  CANCELLED
-}
-
-enum ProjectCategory {
-  EDUCATION
-  SOCIAL
-  HEALTH
-  DIGITAL
-  PARTNERSHIP
-}
-
-model DocumentTag {
-  id         String   @id @default(cuid())
-  name       String
-  documentId String
-  document   Document @relation(fields: [documentId], references: [id])
+  SENDING
+  SENT
+  FAILED
 }

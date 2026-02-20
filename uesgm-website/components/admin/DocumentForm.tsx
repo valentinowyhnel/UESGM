@@ -25,7 +25,7 @@ import { Upload, Loader2, FileText, X } from 'lucide-react'
 const documentSchema = z.object({
     title: z.string().min(3, "Le titre est trop court"),
     description: z.string().optional(),
-    category: z.enum(["STATUTS", "RAPPORTS", "GUIDES", "LIVRES", "ARTICLES", "PROJETS_SCIENTIFIQUES"]),
+    category: z.enum(["STATUTS", "RAPPORT", "GUIDE", "LIVRE", "ARTICLE", "ACADEMIQUE", "JURIDIQUE", "ADMINISTRATIF"]),
     tags: z.string().optional(),
     published: z.boolean(),
 })
@@ -43,7 +43,7 @@ export default function DocumentForm() {
         defaultValues: {
             title: '',
             description: '',
-            category: 'RAPPORTS',
+            category: 'RAPPORT',
             tags: '',
             published: false,
         }
@@ -154,11 +154,13 @@ export default function DocumentForm() {
                                     </FormControl>
                                     <SelectContent>
                                         <SelectItem value="STATUTS">Statuts</SelectItem>
-                                        <SelectItem value="RAPPORTS">Rapports</SelectItem>
-                                        <SelectItem value="GUIDES">Guides</SelectItem>
-                                        <SelectItem value="LIVRES">Livres</SelectItem>
-                                        <SelectItem value="ARTICLES">Articles</SelectItem>
-                                        <SelectItem value="PROJETS_SCIENTIFIQUES">Projets Scientifiques</SelectItem>
+                                        <SelectItem value="RAPPORT">Rapports</SelectItem>
+                                        <SelectItem value="GUIDE">Guides</SelectItem>
+                                        <SelectItem value="LIVRE">Livres</SelectItem>
+                                        <SelectItem value="ARTICLE">Articles</SelectItem>
+                                        <SelectItem value="ACADEMIQUE">Académique</SelectItem>
+                                        <SelectItem value="JURIDIQUE">Juridique</SelectItem>
+                                        <SelectItem value="ADMINISTRATIF">Administratif</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />

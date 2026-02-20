@@ -1,5 +1,8 @@
+"use client"
+
 import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
+import { useState } from "react"
 
 interface PartnerCardProps {
     name: string
@@ -9,20 +12,24 @@ interface PartnerCardProps {
 }
 
 export function PartnerCard({ name, description, website, image }: PartnerCardProps) {
+    const [imageError, setImageError] = useState(false)
+
     return (
         <Card className="hover:shadow-lg transition-all group border-transparent hover:border-gold/30">
             <CardContent className="p-8 flex flex-col items-center text-center space-y-4">
-                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                    {image ? (
+                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform overflow-hidden">
+                    {image && !imageError ? (
                         <Image
                             src={image}
                             alt={name}
                             width={96}
                             height={96}
-                            className="rounded-full object-cover"
+                            className="rounded-full object-cover w-full h-full"
+                            unoptimized
+                            onError={() => setImageError(true)}
                         />
                     ) : (
-                        <span className="text-2xl font-bold text-gray-300">{name.charAt(0)}</span>
+                        <span className="text-3xl font-bold text-gray-300">{name.charAt(0)}</span>
                     )}
                 </div>
                 <div>

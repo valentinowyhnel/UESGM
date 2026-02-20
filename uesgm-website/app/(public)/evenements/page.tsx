@@ -15,10 +15,14 @@ async function getEvents() {
         orderBy: { startDate: 'asc' },
         include: {
           antennes: {
-            select: { id: true, city: true }
+            include: {
+              antenne: {
+                select: { id: true, city: true }
+              }
+            }
           },
           _count: {
-            select: { attendees: true }
+            select: { registrations: true }
           }
         }
       }),
@@ -30,10 +34,14 @@ async function getEvents() {
         orderBy: { startDate: 'desc' },
         include: {
           antennes: {
-            select: { id: true, city: true }
+            include: {
+              antenne: {
+                select: { id: true, city: true }
+              }
+            }
           },
           _count: {
-            select: { attendees: true }
+            select: { registrations: true }
           }
         }
       })

@@ -102,7 +102,7 @@ export default function AdminProjectsPage() {
         ...(selectedCategory !== "all" && { category: selectedCategory })
       })
 
-      const response = await fetch(`/api/admin/projects-new?${params}`)
+      const response = await fetch(`/api/admin/projects?${params}`)
       if (!response.ok) {
         throw new Error('Erreur lors du chargement des projets')
       }
@@ -120,7 +120,7 @@ export default function AdminProjectsPage() {
 
   const handleDelete = async (projectId: string) => {
     try {
-      const response = await fetch(`/api/admin/projects-new/${projectId}`, {
+      const response = await fetch(`/api/admin/projects/${projectId}`, {
         method: 'DELETE'
       })
 
@@ -138,8 +138,8 @@ export default function AdminProjectsPage() {
 
   const handleStatusChange = async (projectId: string, newStatus: string) => {
     try {
-      const response = await fetch(`/api/admin/projects-new/${projectId}/status`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/admin/projects/${projectId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       })
@@ -155,6 +155,28 @@ export default function AdminProjectsPage() {
     } catch (error: any) {
       toast.error('Erreur', {
         description: error.message || 'Impossible de changer le statut'
+      })
+    }
+  }
+
+  const handlePublishToggle = async (projectId: string, currentPublished: boolean) => {
+    try {
+      const response = await fetch(`/api/admin/projects/${projectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublished: !currentPublished })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erreur lors de la publication')
+      }
+
+      toast.success(!currentPublished ? 'Projet publié avec succès' : 'Projet masqué avec succès')
+      loadProjects()
+    } catch (error: any) {
+      toast.error('Erreur', {
+        description: error.message || 'Impossible de modifier la publication'
       })
     }
   }
@@ -253,7 +275,7 @@ export default function AdminProjectsPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            Projets ({pagination.totalItems})
+            Projets ({pagination?.totalItems || 0})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -296,8 +318,8 @@ export default function AdminProjectsPage() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <Badge className={categoryConfig[project.category].color}>
-                        {categoryConfig[project.category].label}
+                      <Badge className={categoryConfig[project.category]?.color || "bg-gray-100 text-gray-800"}>
+                        {categoryConfig[project.category]?.label || "Non catégorisé"}
                       </Badge>
                     </td>
                     <td className="p-4">
@@ -309,28 +331,31 @@ export default function AdminProjectsPage() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <Badge className={statusConfig[project.status].color}>
-                        {statusConfig[project.status].label}
+                      <Badge className={statusConfig[project.status]?.color || "bg-gray-100 text-gray-800"}>
+                        {statusConfig[project.status]?.label || "Inconnu"}
                       </Badge>
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => handlePublishToggle(project.id, project.isPublished)}
+                        className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
+                      >
                         <div className={`w-2 h-2 rounded-full ${
                           project.isPublished ? 'bg-green-500' : 'bg-gray-300'
                         }`} />
                         <span className="text-sm">
-                          {project.isPublished ? 'Oui' : 'Non'}
+                          {project.isPublished ? 'Publié' : 'Non publié'}
                         </span>
-                      </div>
+                      </button>
                     </td>
                     <td className="p-4">
                       <div className="flex flex-wrap gap-1">
-                        {project.tags.slice(0, 2).map((tag) => (
+                        {project.tags && project.tags.slice(0, 2).map((tag) => (
                           <Badge key={tag.id} variant="outline" className="text-xs">
                             {tag.name}
                           </Badge>
                         ))}
-                        {project.tags.length > 2 && (
+                        {project.tags && project.tags.length > 2 && (
                           <Badge variant="outline" className="text-xs">
                             +{project.tags.length - 2}
                           </Badge>
@@ -393,7 +418,7 @@ export default function AdminProjectsPage() {
           </div>
 
           {/* Pagination */}
-          {pagination.totalPages > 1 && (
+          {pagination && pagination.totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-gray-600">
                 Page {pagination.page} sur {pagination.totalPages} ({pagination.totalItems} projets)

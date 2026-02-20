@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { 
   withAdminAuth, 
   eventUpdateSchema, 
@@ -6,6 +7,8 @@ import {
   logAdminAction, 
   generateSlug
 } from '@/lib/admin-events-security'
+import { prisma } from '@/lib/prisma'
+import { emitAdminEventEvent } from '@/lib/sse'
 
 // Interface pour les événements (même définition que dans le route principal)
 interface Event {
@@ -117,7 +120,17 @@ export const GET = withAdminAuth(async (req: NextRequest, user, { params }: { pa
     const eventId = params.id
 
     // Vérifier si l'événement existe
-    const event = eventService.getById(eventId)
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        createdBy: {
+          select: { id: true, name: true, email: true }
+        },
+        _count: {
+          select: { registrations: true }
+        }
+      }
+    })
     if (!event) {
       return NextResponse.json(
         { error: 'Événement non trouvé' },
@@ -233,6 +246,15 @@ export const PATCH = withAdminAuth(async (req: NextRequest, user, { params }: { 
       )
     }
 
+    // Revalidation du cache
+    revalidatePath('/admin/evenements')
+    // Revalider les pages publiques si l'événement est publié
+    const finalStatus = updateData.status || existingEvent.status
+    if (finalStatus === 'PUBLISHED') {
+      revalidatePath('/events')
+      revalidatePath(`/events/${eventId}`)
+    }
+
     // Logging de l'action
     await logAdminAction(
       user.id,
@@ -261,7 +283,14 @@ export const DELETE = withAdminAuth(async (req: NextRequest, user, { params }: {
     const eventId = params.id
 
     // Vérifier si l'événement existe
-    const existingEvent = eventService.getById(eventId)
+    const existingEvent = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        _count: {
+          select: { registrations: true }
+        }
+      }
+    })
     if (!existingEvent) {
       return NextResponse.json(
         { error: 'Événement non trouvé' },
@@ -270,24 +299,35 @@ export const DELETE = withAdminAuth(async (req: NextRequest, user, { params }: {
     }
 
     // Vérifier si l'événement a des inscriptions
-    if (existingEvent._count?.attendees && existingEvent._count.attendees > 0) {
+    if (existingEvent._count.registrations > 0) {
       return NextResponse.json(
         { 
           error: 'Impossible de supprimer un événement avec des inscriptions',
-          details: `Cet événement a ${existingEvent._count.attendees} inscription(s)`
+          details: `Cet événement a ${existingEvent._count.registrations} inscription(s)`
         },
         { status: 400 }
       )
     }
 
     // Suppression de l'événement
-    const deletedEvent = eventService.delete(eventId)
-    if (!deletedEvent) {
-      return NextResponse.json(
-        { error: 'Événement non trouvé' },
-        { status: 404 }
-      )
-    }
+    const deletedEvent = await prisma.event.delete({
+      where: { id: eventId }
+    })
+
+    // Revalidation du cache
+    revalidatePath('/admin/evenements')
+    revalidatePath('/events')
+    revalidatePath(`/events/${eventId}`)
+
+    // Émettre un événement SSE
+    emitAdminEventEvent('event:deleted', {
+      id: deletedEvent.id,
+      title: deletedEvent.title,
+      slug: deletedEvent.slug,
+      status: deletedEvent.status,
+      category: deletedEvent.category,
+      updatedAt: deletedEvent.updatedAt.toISOString()
+    })
 
     // Logging de l'action
     await logAdminAction(

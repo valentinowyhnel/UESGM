@@ -6,10 +6,20 @@ import { LogOut } from 'lucide-react'
 
 export default function LogoutButton() {
     const handleLogout = async () => {
-        await signOut({
-            callbackUrl: '/',  // Redirect to home page
-            redirect: true
-        })
+        // Clear any stored data
+        if (typeof window !== 'undefined') {
+            sessionStorage.clear();
+            localStorage.clear();
+            
+            // Sign out first, then replace the URL to prevent back button
+            await signOut({
+                callbackUrl: '/',
+                redirect: false
+            })
+            
+            // Replace the current URL to prevent back button navigation
+            window.location.replace('/')
+        }
     }
 
     return (

@@ -35,7 +35,7 @@ export const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 export const documentSchema = z.object({
   title: z.string().min(4, 'Le titre doit contenir au moins 4 caractères'),
   description: z.string().optional(),
-  category: z.enum(['STATUTS', 'RAPPORTS', 'GUIDES', 'ACADEMIQUE', 'JURIDIQUE', 'ADMINISTRATIF']),
+  category: z.enum(['STATUTS', 'RAPPORT', 'GUIDE', 'LIVRE', 'ARTICLE', 'ACADEMIQUE', 'JURIDIQUE', 'ADMINISTRATIF']),
   visibility: z.enum(['PUBLIC', 'MEMBERS_ONLY', 'ADMIN_ONLY']).default('PUBLIC'),
   tags: z.array(z.string().min(1).max(50)).optional()
 })
@@ -63,24 +63,29 @@ export async function requireAdmin(req: NextRequest): Promise<{ user: AdminUser 
       )
     }
 
-    // Vérifier le rôle admin (pour l'instant, nous simulons avec une vérification simple)
-    // En production, vous devriez vérifier le rôle depuis la base de données
-    const adminEmails = ['admin@esgm.org', 'superadmin@esgm.org'] // À remplacer par une vraie vérification DB
+    // Vérifier le rôle admin en base de données
+    const { PrismaClient } = await import('@prisma/client')
+    const prisma = new PrismaClient()
     
-    if (!adminEmails.includes(session.user.email)) {
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, role: true, name: true }
+    })
+    
+    if (!dbUser || (dbUser.role !== 'ADMIN' && dbUser.role !== 'SUPER_ADMIN')) {
       return NextResponse.json(
-        { error: 'Accès non autorisé' },
+        { error: 'Accès non autorisé - Rôle admin requis' },
         { status: 403 }
       )
     }
 
     // Déterminer le rôle
-    const role: AdminRole = session.user.email === 'superadmin@esgm.org' ? 'SUPER_ADMIN' : 'ADMIN'
+    const role: AdminRole = dbUser.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN'
 
     const user: AdminUser = {
-      id: (session.user as any).id || 'admin-1',
+      id: dbUser.id,
       email: session.user.email!,
-      name: session.user.name || 'Admin',
+      name: dbUser.name || session.user.name || 'Admin',
       role
     }
 
@@ -246,8 +251,10 @@ export function getMimeTypeIcon(mimeType: string): string {
 export function getCategoryLabel(category: string): string {
   const labels: Record<string, string> = {
     'STATUTS': 'Statuts',
-    'RAPPORTS': 'Rapports',
-    'GUIDES': 'Guides',
+    'RAPPORT': 'Rapports',
+    'GUIDE': 'Guides',
+    'LIVRE': 'Livres',
+    'ARTICLE': 'Articles',
     'ACADEMIQUE': 'Académique',
     'JURIDIQUE': 'Juridique',
     'ADMINISTRATIF': 'Administratif'

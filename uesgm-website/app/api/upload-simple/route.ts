@@ -21,8 +21,8 @@ const ALLOWED_TYPES = [
   'audio/wav'
 ]
 
-// Taille maximale (10MB)
-const MAX_FILE_SIZE = 10 * 1024 * 1024
+// Taille maximale (50MB - augmentée pour les documents volumineux)
+const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 // Chemin vers le dossier d'upload
 const UPLOAD_DIR = join(process.cwd(), 'public', 'uploads')
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Validation de la taille
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: 'Fichier trop volumineux (max 10MB)' },
+        { error: 'Fichier trop volumineux (max 50MB)' },
         { status: 400 }
       )
     }

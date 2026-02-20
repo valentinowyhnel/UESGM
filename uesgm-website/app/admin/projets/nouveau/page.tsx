@@ -178,13 +178,40 @@ export default function NewProjectPage() {
                 }
             }
 
-            // Simuler la sauvegarde du projet
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            // Préparer les données du projet
+            const projectData = {
+                title: formData.title,
+                slug: formData.slug,
+                description: formData.description,
+                shortDesc: formData.description.substring(0, 200),
+                category: formData.category,
+                status: formData.status,
+                progress: formData.progress,
+                startDate: formData.startDate ? new Date(formData.startDate).toISOString() : null,
+                endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
+                isPublished: false, // Par défaut, non publié
+            }
 
+            // Envoyer les données à l'API
+            const response = await fetch('/api/admin/projects', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(projectData),
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                throw new Error(error.error || 'Erreur lors de la création du projet')
+            }
+
+            const result = await response.json()
             toast.success("Projet créé avec succès!")
             router.push("/admin/projets")
-        } catch (error) {
-            toast.error("Erreur lors de la création du projet")
+        } catch (error: any) {
+            console.error('Erreur création projet:', error)
+            toast.error(error.message || "Erreur lors de la création du projet")
         } finally {
             setIsSubmitting(false)
             setUploadProgress(0)
@@ -299,7 +326,7 @@ export default function NewProjectPage() {
                                     min="0"
                                     max="100"
                                     value={formData.progress}
-                                    onChange={(e) => handleInputChange('progress', parseInt(e.target.value))}
+                                    onChange={(e) => handleInputChange('progress', parseInt(e.target.value) || 0)}
                                 />
                             </div>
                         </div>
@@ -414,7 +441,7 @@ export default function NewProjectPage() {
                                     type="number"
                                     min="0"
                                     value={formData.budget}
-                                    onChange={(e) => handleInputChange('budget', parseInt(e.target.value))}
+                                    onChange={(e) => handleInputChange('budget', parseInt(e.target.value) || 0)}
                                     placeholder="50000"
                                 />
                             </div>
@@ -425,7 +452,7 @@ export default function NewProjectPage() {
                                     type="number"
                                     min="0"
                                     value={formData.currentBudget}
-                                    onChange={(e) => handleInputChange('currentBudget', parseInt(e.target.value))}
+                                    onChange={(e) => handleInputChange('currentBudget', parseInt(e.target.value) || 0)}
                                     placeholder="25000"
                                 />
                             </div>

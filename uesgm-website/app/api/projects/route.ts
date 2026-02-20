@@ -7,7 +7,7 @@ import { z } from "zod"
 // Schéma de validation amélioré
 const ProjectSchema = z.object({
   title: z.string().min(5).max(200),
-  description: z.string().min(10).max(5000),
+  description: z.string().min(5).max(5000),
   status: z.enum(['IN_PROGRESS', 'COMPLETED', 'PLANNED']),
   category: z.enum(['ACADEMIC', 'CULTURAL', 'SOCIAL', 'SPORT', 'OTHER']),
   city: z.string().max(100).optional(),

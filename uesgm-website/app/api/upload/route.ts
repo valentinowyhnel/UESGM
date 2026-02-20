@@ -270,7 +270,7 @@ export async function PUT(req: Request) {
           data: {
             title: confirmData.title || confirmData.fileName,
             description: confirmData.description,
-            category: confirmData.category as any || 'ARTICLES',
+            category: confirmData.category as any || 'ARTICLE',
             fileUrl: `https://uesgm.ma/uploads/${confirmData.fileName}`,
             mimeType: confirmData.mimeType,
             fileSize: confirmData.fileSize,

@@ -3,14 +3,13 @@
 import { useState, useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
-import { LogOut, Menu, User, Home, Users, Calendar, Settings } from "lucide-react"
+import { signOut } from "next-auth/react"
+import { LogOut, Menu, User, Home, Users, Calendar, Settings, FolderKanban, Library } from "lucide-react"
 
 export default function AdminShell({
   children,
-  session,
 }: {
   children: React.ReactNode
-  session: any
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
@@ -19,6 +18,8 @@ export default function AdminShell({
   const navigation = [
     { name: 'Tableau de bord', href: '/admin/dashboard', icon: Home },
     { name: 'Membres', href: '/admin/membres', icon: Users },
+    { name: 'Projets', href: '/admin/projets', icon: FolderKanban },
+    { name: 'Bibliothèque', href: '/admin/bibliotheque', icon: Library },
     { name: 'Événements', href: '/admin/evenements', icon: Calendar },
     { name: 'Paramètres', href: '/admin/parametres', icon: Settings },
   ]
@@ -58,10 +59,22 @@ export default function AdminShell({
               <div className="flex items-center">
                 <div className="ml-3">
                   <p className="text-sm font-medium text-gray-700">
-                    {session?.user?.name || 'Administrateur'}
+                    Administrateur
                   </p>
                   <button
-                    onClick={() => router.push('/api/auth/signout')}
+                    onClick={async () => {
+                      // Déconnexion stricte -clear all data and redirect
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.clear();
+                        localStorage.clear();
+                        
+                        // Sign out first, then replace the URL to prevent back button
+                        await signOut({ callbackUrl: '/', redirect: false })
+                        
+                        // Replace the current URL to prevent back button navigation
+                        window.location.replace('/')
+                      }
+                    }}
                     className="text-xs font-medium text-gray-500 hover:text-gray-700"
                   >
                     Se déconnecter
@@ -166,10 +179,10 @@ export default function AdminShell({
                 <div className="flex items-center">
                   <div>
                     <p className="text-sm font-medium text-gray-700">
-                      {session?.user?.name || 'Administrateur'}
+                      Administrateur
                     </p>
                     <button
-                      onClick={() => router.push('/api/auth/signout')}
+                      onClick={() => signOut({ callbackUrl: '/' })}
                       className="text-xs font-medium text-gray-500 hover:text-gray-700"
                     >
                       Se déconnecter

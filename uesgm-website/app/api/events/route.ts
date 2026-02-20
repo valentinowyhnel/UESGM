@@ -34,7 +34,7 @@ type EventCategory = typeof EventCategory[keyof typeof EventCategory]
 // Schema for creating/updating events
 const CreateEventSchema = z.object({
   title: z.string().min(3).max(100),
-  description: z.string().min(10),
+  description: z.string().min(5),
   location: z.string().min(3),
   startDate: z.string().or(z.date()),
   endDate: z.string().or(z.date()).optional(),
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
             }
           },
           _count: {
-            select: { attendees: true }
+            select: { registrations: true }
           }
         }
       }),
@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
           }
         },
         _count: {
-          select: { attendees: true }
+          select: { registrations: true }
         }
       }
     })
@@ -283,7 +283,7 @@ export async function PUT(req: NextRequest) {
       data: updateData,
       include: {
         _count: {
-          select: { attendees: true }
+          select: { registrations: true }
         }
       }
     })

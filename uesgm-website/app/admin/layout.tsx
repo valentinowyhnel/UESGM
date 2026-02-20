@@ -1,104 +1,30 @@
-import NextAuth, { type NextAuthOptions, getServerSession } from "next-auth"
-import CredentialsProvider from "next-auth/providers/credentials"
-import { PrismaAdapter } from "@next-auth/prisma-adapter"
-import { prisma } from "@/lib/prisma"
-import bcrypt from "bcryptjs"
+// Admin Layout - Protected admin area
+// Authentication is handled by the middleware and lib/auth configuration
 
-// =============================
-// Types augmentation NextAuth
-// =============================
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string
-      email: string  // Rendre email obligatoire
-      name?: string | null
-      role: string
-    }
+import { redirect } from "next/navigation"
+import { auth } from "@/lib/auth"
+import { UserRole } from "@/types/next-auth"
+import AdminShell from "./AdminShell"
+
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  // Get the session using the centralized auth
+  const session = await auth()
+
+  // If no session, redirect to login
+  if (!session) {
+    redirect("/login")
   }
 
-  interface User {
-    role: string
+  // Check if user has admin role
+  const userRole = session.user?.role as UserRole | undefined
+  
+  if (!userRole || (userRole !== "ADMIN" && userRole !== "SUPER_ADMIN")) {
+    redirect("/unauthorized")
   }
+
+  return <AdminShell>{children}</AdminShell>
 }
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    id: string
-    role: string
-  }
-}
-
-// =============================
-// Options NextAuth
-// =============================
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
-
-  session: {
-    strategy: "jwt",
-  },
-
-  pages: {
-    signIn: "/portal",
-  },
-
-  providers: [
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        })
-
-        if (!user || !user.password) return null
-
-        const valid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        )
-
-        if (!valid) return null
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        }
-      },
-    }),
-  ],
-
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id
-        token.role = user.role
-      }
-      return token
-    },
-
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id
-        session.user.role = token.role
-      }
-      return session
-    },
-  },
-
-  secret: process.env.NEXTAUTH_SECRET,
-}
-
-// =============================
-// Handler NextAuth App Router
-// =============================
-export const { handlers, auth } = NextAuth(authOptions)

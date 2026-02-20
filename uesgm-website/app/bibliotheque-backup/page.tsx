@@ -26,7 +26,7 @@ interface Document {
     title: string
     slug: string
     description?: string | null
-    category: "STATUTS" | "RAPPORTS" | "GUIDES" | "ACADEMIQUE" | "JURIDIQUE" | "ADMINISTRATIF"
+    category: "STATUTS" | "RAPPORT" | "GUIDE" | "LIVRE" | "ARTICLE" | "ACADEMIQUE" | "JURIDIQUE" | "ADMINISTRATIF"
     fileName: string
     fileSize: number
     mimeType: string
@@ -48,8 +48,10 @@ interface DocumentsResponse {
 // Configuration des catégories
 const categoryConfig = {
     STATUTS: { label: "Statuts", color: "bg-blue-100 text-blue-800" },
-    RAPPORTS: { label: "Rapports", color: "bg-green-100 text-green-800" },
-    GUIDES: { label: "Guides", color: "bg-purple-100 text-purple-800" },
+    RAPPORT: { label: "Rapports", color: "bg-green-100 text-green-800" },
+    GUIDE: { label: "Guides", color: "bg-purple-100 text-purple-800" },
+    LIVRE: { label: "Livres", color: "bg-yellow-100 text-yellow-800" },
+    ARTICLE: { label: "Articles", color: "bg-pink-100 text-pink-800" },
     ACADEMIQUE: { label: "Académique", color: "bg-orange-100 text-orange-800" },
     JURIDIQUE: { label: "Juridique", color: "bg-red-100 text-red-800" },
     ADMINISTRATIF: { label: "Administratif", color: "bg-gray-100 text-gray-800" },

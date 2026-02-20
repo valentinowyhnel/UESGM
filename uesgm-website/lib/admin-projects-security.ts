@@ -19,7 +19,7 @@ export const projectSchema = z.object({
   title: z.string().min(5, 'Le titre doit contenir au moins 5 caractères'),
   shortDesc: z.string().max(150, 'La description courte ne doit pas dépasser 150 caractères'),
   description: z.string().min(30, 'La description doit contenir au moins 30 caractères'),
-  category: z.enum(['EDUCATION', 'SOCIAL', 'HEALTH', 'DIGITAL', 'PARTNERSHIP']),
+  category: z.enum(['EDUCATION', 'SOCIAL', 'HEALTH', 'DIGITAL', 'PARTNERSHIP', 'ENVIRONMENT', 'CULTURE', 'INFRASTRUCTURE', 'SPORT']),
   status: z.enum(['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).default('PLANNED'),
   progress: z.number().int().min(0).max(100).default(0),
   tags: z.array(z.string().min(1).max(50)).optional(),
@@ -58,24 +58,29 @@ export async function requireAdmin(req: NextRequest): Promise<{ user: AdminUser 
       )
     }
 
-    // Vérifier le rôle admin (pour l'instant, nous simulons avec une vérification simple)
-    // En production, vous devriez vérifier le rôle depuis la base de données
-    const adminEmails = ['admin@esgm.org', 'superadmin@esgm.org'] // À remplacer par une vraie vérification DB
+    // Vérifier le rôle admin en base de données
+    const { PrismaClient } = await import('@prisma/client')
+    const prisma = new PrismaClient()
     
-    if (!adminEmails.includes(session.user.email)) {
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, role: true, name: true }
+    })
+    
+    if (!dbUser || (dbUser.role !== 'ADMIN' && dbUser.role !== 'SUPER_ADMIN')) {
       return NextResponse.json(
-        { error: 'Accès non autorisé' },
+        { error: 'Accès non autorisé - Rôle admin requis' },
         { status: 403 }
       )
     }
 
     // Déterminer le rôle
-    const role: AdminRole = session.user.email === 'superadmin@esgm.org' ? 'SUPER_ADMIN' : 'ADMIN'
+    const role: AdminRole = dbUser.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN'
 
     const user: AdminUser = {
-      id: (session.user as any).id || 'admin-1',
+      id: dbUser.id,
       email: session.user.email!,
-      name: session.user.name || 'Admin',
+      name: dbUser.name || session.user.name || 'Admin',
       role
     }
 

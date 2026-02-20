@@ -26,19 +26,19 @@ const initialAntennes = [
         city: "Agadir", 
         responsable: "M. NGOMO ASSOUMOU Ely Dylane (SG)", 
         phone: "+212 675 564 119",
-        email: "agadir@uesgm.ma" 
+        email: "uesgmagadir@gmail.com" 
     },
     { 
         city: "Mohammedia", 
         responsable: "M. Chryst MOUDOUYI (SG)", 
         phone: "+212 774 975 944",
-        email: "mohammedia@uesgm.ma" 
+        email: "uesgmmohammedia@gmail.com" 
     },
     { 
         city: "Rabat – Salé – Témara – Kénitra", 
         responsable: "M. OKOUROU Désiré Phanuel (SG)", 
         phone: "+212 645 070 013",
-        email: "rabat@uesgm.ma" 
+        email: "uesgmrabat@gmail.com" 
     },
     { 
         city: "Casablanca – El Jadida", 
@@ -50,25 +50,25 @@ const initialAntennes = [
         city: "Meknès", 
         responsable: "Mme Lyda Winnie ASSENGONE ZUE (SG)", 
         phone: "+212 774 129 380",
-        email: "uesgmmekneskhenifra@gmail.com" 
+        email: "uesgmmeknes@gmail.com" 
     },
     { 
         city: "Settat", 
         responsable: "M. NDONG ETOUGHE YEBE Labhyze Verdaly (SG)", 
         phone: "+212 625 689 406",
-        email: "settat@uesgm.ma" 
+        email: "uesgmsettat@gmail.com" 
     },
     { 
         city: "Tanger – Tétouan", 
         responsable: "Mme MOUGOLA Manu OYANE Doraine (SG)", 
         phone: "+212 775 001 133",
-        email: "tanger@uesgm.ma" 
+        email: "uesgm.tanger.tetouan.l@gmail.com" 
     },
     { 
         city: "Marrakech", 
         responsable: "M. BANA (SG)", 
         phone: "+212 778 672 739",
-        email: "marrakech@uesgm.ma" 
+        email: "uesgmmarrakech@gmail.com" 
     },
 ]
 

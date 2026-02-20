@@ -4,12 +4,16 @@ import prisma from "@/lib/prisma-wrapper";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { DocumentCategory, DocumentVisibility } from "@/types/documents";
+import { Prisma } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { emitDocumentEvent } from "@/lib/sse";
 
 const updateDocSchema = z.object({
   title: z.string().min(3).optional(),
   description: z.string().optional(),
   category: z.nativeEnum(DocumentCategory).optional(),
   visibility: z.nativeEnum(DocumentVisibility).optional(),
+  canDownload: z.boolean().optional(),
   tags: z.array(z.string()).optional(),
   fileUrl: z.string().url().optional(),
   fileName: z.string().optional(),
@@ -21,7 +25,7 @@ const updateDocSchema = z.object({
 // GET - Get single document (admin)
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any)?.role !== "SUPER_ADMIN") {
+  if (!session || !((session.user as any)?.role === 'ADMIN' || (session.user as any)?.role === 'SUPER_ADMIN')) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -45,7 +49,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 // PATCH - Update document (admin)
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any)?.role !== "SUPER_ADMIN") {
+  if (!session || !((session.user as any)?.role === 'ADMIN' || (session.user as any)?.role === 'SUPER_ADMIN')) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -57,14 +61,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: parse.error.flatten() }, { status: 400 });
     }
 
-    const { title, description, category, visibility, tags, fileUrl, fileName, mimeType, fileSize, published } = parse.data;
+    const { title, description, category, visibility, canDownload, tags, fileUrl, fileName, mimeType, fileSize, published } = parse.data;
 
     // Build update data
     const updateData: any = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
-    if (category !== undefined) updateData.category = category;
-    if (visibility !== undefined) updateData.visibility = visibility;
+    if (category !== undefined) updateData.category = category as any;
+    if (visibility !== undefined) updateData.visibility = visibility as any;
+    if (canDownload !== undefined) updateData.canDownload = canDownload;
     if (fileUrl !== undefined) updateData.fileUrl = fileUrl;
     if (fileName !== undefined) updateData.fileName = fileName;
     if (mimeType !== undefined) updateData.mimeType = mimeType;
@@ -88,6 +93,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       include: { tags: true }
     });
 
+    // Revalidation du cache - toujours rafraichir les pages admin
+    revalidatePath('/admin/bibliotheque')
+    revalidatePath('/admin/documents')
+    if (published === true) {
+      revalidatePath('/bibliotheque')
+      revalidatePath(`/bibliotheque/${params.id}`)
+    }
+
+    // Émettre un événement SSE pour notifier les clients connectés
+    emitDocumentEvent(published ? 'document:published' : 'document:updated', {
+      id: updated.id,
+      title: updated.title,
+      slug: updated.slug,
+      isPublished: updated.isPublished,
+      category: updated.category,
+      updatedAt: updated.updatedAt.toISOString()
+    })
+
     return NextResponse.json({ ok: true, document: updated });
   } catch (error) {
     console.error("Update document error:", error);
@@ -98,14 +121,33 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 // DELETE - Delete document (admin)
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any)?.role !== "SUPER_ADMIN") {
+  if (!session || !((session.user as any)?.role === 'ADMIN' || (session.user as any)?.role === 'SUPER_ADMIN')) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const id = params.id;
 
   try {
-    // soft delete alternative: here permanent
+    // Check if document exists
+    const existing = await prisma.document.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+    
+    // Permanent delete
     await prisma.document.delete({ where: { id } });
+    
+    // Revalidate cache
+    revalidatePath('/bibliotheque')
+    revalidatePath('/admin/documents')
+    
+    // Émettre un événement SSE pour notifier les clients connectés
+    emitDocumentEvent('document:deleted', {
+      id: existing.id,
+      title: existing.title,
+      slug: existing.slug,
+      updatedAt: new Date().toISOString()
+    })
+    
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Delete doc error:", err);

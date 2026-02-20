@@ -21,7 +21,7 @@ const ALLOWED_MIME_TYPES = [
   "text/plain",
 ];
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export async function POST(req: NextRequest) {
   const adminCheck = await requireAdmin();
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ error: "File too large (max 20MB)" }, { status: 400 });
+      return NextResponse.json({ error: "File too large (max 50MB)" }, { status: 400 });
     }
 
     // Generate unique filename

@@ -34,7 +34,10 @@ export const GET = withAdminAuth(async (req: NextRequest) => {
           createdBy: {
             select: { id: true, name: true, email: true }
           },
-          tags: true
+          tags: true,
+          images: {
+            orderBy: { order: 'asc' }
+          }
         }
       }),
       prisma.project.count({ where })
@@ -126,11 +129,21 @@ export const POST = withAdminAuth(async (req: NextRequest) => {
         endDate: body.endDate ? new Date(body.endDate) : null,
         isPublished: body.isPublished || false,
         imageUrl: body.imageUrl || null,
-        createdById: user.id
+        createdById: user.id,
+        // Ajouter les images si présentes
+        images: body.images && body.images.length > 0 ? {
+          create: body.images.map((url: string, index: number) => ({
+            url,
+            order: index
+          }))
+        } : undefined
       },
       include: {
         createdBy: {
           select: { id: true, name: true, email: true }
+        },
+        images: {
+          orderBy: { order: 'asc' }
         }
       }
     })

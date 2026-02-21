@@ -1,3 +1,7 @@
+// Désactiver le cache pour récupérer les projets en temps réel
+export const dynamicParams = true
+export const revalidate = 0
+
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"

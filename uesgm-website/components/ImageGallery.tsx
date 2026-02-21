@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ImageWithFallback } from './ImageWithFallback'
 
 interface ImageGalleryProps {
   images: string[]
@@ -44,7 +45,7 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
             className="relative aspect-video rounded-lg overflow-hidden border cursor-pointer hover:opacity-80 transition-opacity group"
             onClick={() => openLightbox(index)}
           >
-            <Image
+            <ImageWithFallback
               src={img}
               alt={`${title || 'Image'} - ${index + 1}`}
               fill

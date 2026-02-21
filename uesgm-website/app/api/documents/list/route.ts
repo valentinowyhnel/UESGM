@@ -109,13 +109,27 @@ export async function GET(req: Request) {
     // Rest of your GET implementation remains the same...
     // [Previous GET implementation continues...]
     
-    // Recherche textuelle
+    // Recherche textuelle - recherche dans titre, description et tags
     if (query.search) {
+      const searchTerms = query.search.toLowerCase().split(' ').filter(t => t.length > 0)
+      
       where.OR = [
         { title: { contains: query.search, mode: 'insensitive' } },
         { description: { contains: query.search, mode: 'insensitive' } },
-        { tags: { hasSome: [query.search] } },
+        { tags: { hasSome: query.search.split(' ').filter(t => t.length > 0) } },
+        { fileName: { contains: query.search, mode: 'insensitive' } },
       ]
+      
+      // Recherche partielle pour chaque terme
+      if (searchTerms.length > 1) {
+        where.AND = searchTerms.map(term => ({
+          OR: [
+            { title: { contains: term, mode: 'insensitive' } },
+            { description: { contains: term, mode: 'insensitive' } },
+            { tags: { has: term } },
+          ]
+        }))
+      }
     }
     
     // Filtre par tags

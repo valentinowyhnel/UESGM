@@ -160,22 +160,26 @@ export default function EventForm({ eventId, initialData }: EventFormProps) {
         setUploading(true)
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('type', 'event')
 
         try {
-            const res = await fetch('/api/upload', {
+            const res = await fetch('/api/admin/events/upload', {
                 method: 'POST',
                 body: formData,
             })
 
             if (!res.ok) {
                 const error = await res.json().catch(() => ({}))
-                throw new Error(error.message || "Échec de l'upload")
+                throw new Error(error.error || "Échec de l'upload")
             }
 
             const data = await res.json()
-            if (data.data?.url) {
-                setImages((prev) => [...prev, data.data.url])
+            // L'API /api/admin/events/upload retourne { success, file: { url } }
+            if (data.file?.url) {
+                setImages((prev) => [...prev, data.file.url])
+                toast.success('Image téléchargée avec succès')
+            } else if (data.success && data.file) {
+                // Alternative response format
+                setImages((prev) => [...prev, data.file.url])
                 toast.success('Image téléchargée avec succès')
             } else {
                 throw new Error(data.error || "URL de l'image non reçue")
@@ -329,15 +333,11 @@ export default function EventForm({ eventId, initialData }: EventFormProps) {
             const result = await response.json()
             toast.success(result.message || 'Opération réussie !')
 
-            // Redirection
+            // Redirection - rester sur la page admin pour voir les changements
             setTimeout(() => {
-                if (result.event?.status === 'PUBLISHED' && result.event?.slug) {
-                    router.push(`/evenements/${result.event.slug}`)
-                } else {
-                    router.push('/admin/evenements')
-                }
+                router.push('/admin/evenements')
                 router.refresh()
-            }, 1000)
+            }, 1500)
         } catch (error: any) {
             console.error('Erreur soumission:', error)
             toast.error(error.message || "Une erreur est survenue lors de l'enregistrement")

@@ -5,101 +5,9 @@ import {
   validateStatusTransition, 
   logAdminAction 
 } from '@/lib/admin-events-security'
-
-// Interface pour les événements (même définition que dans les autres routes)
-interface Event {
-  id: string
-  title: string
-  slug: string
-  description: string
-  location: string
-  imageUrl?: string | null
-  category: 'INTEGRATION' | 'ACADEMIC' | 'SOCIAL' | 'CULTURAL'
-  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
-  startDate: Date
-  endDate?: Date | null
-  maxAttendees?: number | null
-  createdAt: Date
-  updatedAt: Date
-  createdById: string
-  createdBy: {
-    id: string
-    name: string
-    email: string
-  }
-  _count?: {
-    attendees: number
-  }
-}
-
-// Mock data pour les événements (même données que dans les autres routes)
-let mockEvents: Event[] = [
-  {
-    id: '1',
-    title: 'Journée d\'Intégration UESGM 2024',
-    slug: 'journee-integration-uesgm-2024',
-    description: 'Une journée complète pour accueillir les nouveaux membres et présenter les activités de l\'UESGM. Programme riche avec ateliers, présentations et networking.',
-    location: 'Université Omar Bongo, Libreville',
-    imageUrl: '/images/events/integration-2024.jpg',
-    category: 'INTEGRATION',
-    status: 'DRAFT',
-    startDate: new Date('2024-03-15T09:00:00Z'),
-    endDate: new Date('2024-03-15T17:00:00Z'),
-    maxAttendees: 150,
-    createdAt: new Date('2024-01-10'),
-    updatedAt: new Date('2024-01-15'),
-    createdById: 'admin-1',
-    createdBy: {
-      id: 'admin-1',
-      name: 'Admin User',
-      email: 'admin@esgm.org'
-    },
-    _count: {
-      attendees: 45
-    }
-  },
-  {
-    id: '2',
-    title: 'Conférence sur les Sciences Médicales',
-    slug: 'conference-sciences-medicales',
-    description: 'Conférence animée par des experts médicaux sur les dernières avancées en recherche médicale et les opportunités de carrière.',
-    location: 'Faculté de Médecine, Libreville',
-    imageUrl: '/images/events/medical-conference.jpg',
-    category: 'ACADEMIC',
-    status: 'PUBLISHED',
-    startDate: new Date('2024-02-20T14:00:00Z'),
-    endDate: new Date('2024-02-20T18:00:00Z'),
-    maxAttendees: 200,
-    createdAt: new Date('2024-01-05'),
-    updatedAt: new Date('2024-01-08'),
-    createdById: 'admin-1',
-    createdBy: {
-      id: 'admin-1',
-      name: 'Admin User',
-      email: 'admin@esgm.org'
-    },
-    _count: {
-      attendees: 127
-    }
-  }
-]
-
-// Service pour gérer les événements (même logique que dans les autres routes)
-const eventService = {
-  getById: (id: string) => mockEvents.find(e => e.id === id),
-
-  update: (id: string, updates: Partial<Event>) => {
-    const index = mockEvents.findIndex(e => e.id === id)
-    if (index === -1) return null
-
-    mockEvents[index] = {
-      ...mockEvents[index],
-      ...updates,
-      updatedAt: new Date()
-    }
-    return mockEvents[index]
-  }
-}
+import { prisma } from "@/lib/prisma"
+import { revalidatePath } from 'next/cache'
+import { emitAdminEventEvent } from '@/lib/sse'
 
 // PATCH - Changer le statut d'un événement
 export const PATCH = withAdminAuth(async (req: NextRequest, user, { params }: { params: { id: string } }) => {
@@ -124,8 +32,16 @@ export const PATCH = withAdminAuth(async (req: NextRequest, user, { params }: { 
 
     const { status } = validation.data
 
-    // Vérifier si l'événement existe
-    const existingEvent = eventService.getById(eventId)
+    // Vérifier si l'événement existe dans la base de données
+    const existingEvent = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        createdBy: {
+          select: { id: true, name: true, email: true }
+        }
+      }
+    })
+
     if (!existingEvent) {
       return NextResponse.json(
         { error: 'Événement non trouvé' },
@@ -142,8 +58,9 @@ export const PATCH = withAdminAuth(async (req: NextRequest, user, { params }: { 
             current: existingEvent.status,
             requested: status,
             allowed: {
-              'DRAFT': ['PUBLISHED', 'ARCHIVED'],
-              'PUBLISHED': ['ARCHIVED'],
+              'DRAFT': ['PUBLISHED', 'SCHEDULED', 'ARCHIVED'],
+              'PUBLISHED': ['ARCHIVED', 'DRAFT'],
+              'SCHEDULED': ['PUBLISHED', 'DRAFT', 'ARCHIVED'],
               'ARCHIVED': []
             }
           }
@@ -156,17 +73,6 @@ export const PATCH = withAdminAuth(async (req: NextRequest, user, { params }: { 
     if (status === 'PUBLISHED') {
       const now = new Date()
       
-      // Vérifier que la date de début est dans le futur
-      if (existingEvent.startDate <= now) {
-        return NextResponse.json(
-          { 
-            error: 'Impossible de publier un événement dont la date de début est passée',
-            details: 'La date de début doit être dans le futur pour publier un événement'
-          },
-          { status: 400 }
-        )
-      }
-
       // Vérifier que tous les champs requis sont remplis
       if (!existingEvent.title || !existingEvent.description || !existingEvent.location) {
         return NextResponse.json(
@@ -177,16 +83,66 @@ export const PATCH = withAdminAuth(async (req: NextRequest, user, { params }: { 
           { status: 400 }
         )
       }
+
+      // Vérifier que la date de début est dans le futur (optionnel - peut être commenté si on veut permettre la publication d'événements passés)
+      if (existingEvent.startDate <= now) {
+        // On autorise mais on avertit
+        console.log('⚠️ Publication dun événement dont la date de début est passée')
+      }
     }
 
-    // Mise à jour du statut
-    const updatedEvent = eventService.update(eventId, { status })
-    if (!updatedEvent) {
-      return NextResponse.json(
-        { error: 'Événement non trouvé' },
-        { status: 404 }
-      )
+    // Préparer les données de mise à jour
+    const updateData: any = { status }
+    
+    // Si on publie, définir publishedAt
+    if (status === 'PUBLISHED') {
+      updateData.publishedAt = new Date()
+    } else if (status === 'SCHEDULED') {
+      // Pour programmé, utiliser la date de publication si fournie dans le body
+      // Sinon, utiliser une date par défaut (24 heures plus tard)
+      if (body.publishedAt) {
+        updateData.publishedAt = new Date(body.publishedAt)
+      } else {
+        // Par défaut, programmer pour 24 heures plus tard
+        const scheduledDate = new Date()
+        scheduledDate.setHours(scheduledDate.getHours() + 24)
+        updateData.publishedAt = scheduledDate
+      }
+    } else if (status === 'DRAFT') {
+      // Si on remet en brouillon, clear publishedAt
+      updateData.publishedAt = null
     }
+
+    // Mise à jour du statut dans la base de données
+    const updatedEvent = await prisma.event.update({
+      where: { id: eventId },
+      data: updateData,
+      include: {
+        createdBy: {
+          select: { id: true, name: true, email: true }
+        },
+        _count: {
+          select: { registrations: true }
+        }
+      }
+    })
+
+    // Revalidation du cache
+    revalidatePath('/admin/evenements')
+    revalidatePath('/events')
+    revalidatePath(`/events/${eventId}`)
+
+    // Émettre un événement SSE pour la mise à jour en temps réel
+    // Utiliser 'event:updated' pour tout changement de statut
+    emitAdminEventEvent('event:updated', {
+      id: updatedEvent.id,
+      title: updatedEvent.title,
+      slug: updatedEvent.slug,
+      status: updatedEvent.status,
+      category: updatedEvent.category,
+      startDate: updatedEvent.startDate.toISOString(),
+      updatedAt: updatedEvent.updatedAt.toISOString()
+    })
 
     // Logging de l'action
     await logAdminAction(
@@ -206,6 +162,9 @@ export const PATCH = withAdminAuth(async (req: NextRequest, user, { params }: { 
     switch (status) {
       case 'PUBLISHED':
         message = 'Événement publié avec succès'
+        break
+      case 'SCHEDULED':
+        message = 'Événement programmé avec succès'
         break
       case 'ARCHIVED':
         message = 'Événement archivé avec succès'

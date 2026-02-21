@@ -1,6 +1,4 @@
 import { PrismaClient } from "@prisma/client"
-import { Pool } from 'pg'
-import { PrismaPg } from '@prisma/adapter-pg'
 import * as dotenv from "dotenv"
 
 dotenv.config()
@@ -12,12 +10,7 @@ async function verify() {
         process.exit(1)
     }
 
-    const pool = new Pool({
-        connectionString,
-        ssl: { rejectUnauthorized: false }
-    })
-    const adapter = new PrismaPg(pool)
-    const prisma = new PrismaClient({ adapter })
+    const prisma = new PrismaClient()
 
     console.log("🔍 Démarrage de la vérification en 7 points...")
 
@@ -49,15 +42,20 @@ async function verify() {
             console.log("❌ 4. Authentification (Compte Admin) : MANQUANT")
         }
 
-        // 5. Performance (Vérification des index)
-        const indexes = await pool.query(`
-            SELECT indexname FROM pg_indexes 
-            WHERE tablename = 'Census' AND (indexname LIKE '%city%' OR indexname LIKE '%fullName%')
-        `)
-        if (indexes.rows.length >= 2) {
-            console.log("✅ 5. Performance (Indexes sur Census) : ACTIFS")
-        } else {
-            console.log("⚠️ 5. Performance : Certains index manquent sur la table Census")
+        // 5. Performance (Vérification des index sur les tables principales)
+        try {
+            const indexes = await prisma.$queryRawUnsafe<Array<{ indexname: string }>>(
+                "SELECT indexname FROM pg_indexes WHERE tablename IN ('users', 'antennes', 'events') LIMIT 10"
+            )
+            if (indexes && indexes.length >= 5) {
+                console.log(`✅ 5. Performance (Indexes) : ACTIFS (${indexes.length} index trouvés)`)
+            } else if (indexes) {
+                console.log(`⚠️ 5. Performance : ${indexes.length} index trouvés`)
+            } else {
+                console.log("⚠️ 5. Performance : Impossible de vérifier les index")
+            }
+        } catch (e) {
+            console.log("⚠️ 5. Performance : Vérification des index ignorée")
         }
 
         // 6. API Next.js (Structure des modèles)

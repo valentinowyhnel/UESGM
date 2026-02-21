@@ -185,8 +185,9 @@ export async function POST(req: Request) {
     const fileExt = (uploadData as any).fileName?.split('.').pop() || 'jpg'
     const fileName = `${uploadData.type}/${fileId}_${timestamp}.${fileExt}`
     
-    // Simuler une URL signée (en production, utiliser Supabase Storage ou S3)
-    const fileUrl = `/uploads/${fileName}`
+    // Utiliser une URL absolue basée sur l'environnement
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://uesgm.ma'
+    const fileUrl = `${baseUrl}/uploads/${fileName}`
     
     // Enregistrer les métadonnées de l'upload en attente
     const uploadMetadata = {
@@ -292,18 +293,20 @@ export async function PUT(req: Request) {
 
       case 'event':
         if (confirmData.eventId) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://uesgm.ma'
           await prisma.event.update({
             where: { id: confirmData.eventId },
-            data: { imageUrl: `https://uesgm.ma/uploads/${confirmData.fileName}` }
+            data: { imageUrl: `${baseUrl}/uploads/${confirmData.fileName}` }
           })
         }
         break
 
       case 'project':
         if (confirmData.projectId) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://uesgm.ma'
           await prisma.project.update({
             where: { id: confirmData.projectId },
-            data: { imageUrl: `https://uesgm.ma/uploads/${confirmData.fileName}` }
+            data: { imageUrl: `${baseUrl}/uploads/${confirmData.fileName}` }
           })
         }
         break

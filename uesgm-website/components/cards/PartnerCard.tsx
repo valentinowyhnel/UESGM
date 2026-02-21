@@ -14,17 +14,19 @@ interface PartnerCardProps {
 export function PartnerCard({ name, description, website, image }: PartnerCardProps) {
     const [imageError, setImageError] = useState(false)
 
+    const isCgm = name === "Conseil des Gabonais au Maroc (CGM)"
+
     return (
         <Card className="hover:shadow-lg transition-all group border-transparent hover:border-gold/30">
             <CardContent className="p-8 flex flex-col items-center text-center space-y-4">
-                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform overflow-hidden">
+                <div className={`${isCgm ? 'w-40 h-20' : 'w-24 h-24'} bg-gray-100 ${isCgm ? 'rounded-lg' : 'rounded-full'} flex items-center justify-center mb-2 group-hover:scale-110 transition-transform overflow-hidden`}>
                     {image && !imageError ? (
                         <Image
                             src={image}
                             alt={name}
-                            width={96}
-                            height={96}
-                            className="rounded-full object-cover w-full h-full"
+                            width={isCgm ? 160 : 96}
+                            height={isCgm ? 80 : 96}
+                            className={`${isCgm ? 'rounded-lg' : 'rounded-full'} ${isCgm ? 'object-contain p-1' : 'object-cover'} w-full h-full`}
                             unoptimized
                             onError={() => setImageError(true)}
                         />

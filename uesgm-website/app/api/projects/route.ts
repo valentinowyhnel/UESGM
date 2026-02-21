@@ -152,15 +152,14 @@ export async function POST(req: Request) {
       }
     })
 
-    // Créer un log d'audit avec un ID unique
-    await prisma.projectAuditLog.create({
+    // Créer un log d'audit
+    await prisma.auditLog.create({
       data: {
-        id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        projectId: project.id,
-        action: 'CREATED',
-        actorId: (session.user as any).id,
-        actorEmail: session.user.email || '',
-        snapshot: project,
+        action: 'PROJECT_CREATED',
+        entityType: 'Project',
+        entityId: project.id,
+        description: `Projet "${project.title}" créé`,
+        userId: (session.user as any).id,
       }
     })
 
@@ -234,15 +233,14 @@ export async function PUT(req: Request) {
       }
     })
 
-    // Créer un log d'audit avec un ID unique
-    await prisma.projectAuditLog.create({
+    // Créer un log d'audit
+    await prisma.auditLog.create({
       data: {
-        id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        projectId: project.id,
-        action: 'UPDATED',
-        actorId: (session.user as any).id,
-        actorEmail: session.user.email || '',
-        snapshot: project,
+        action: 'PROJECT_UPDATED',
+        entityType: 'Project',
+        entityId: project.id,
+        description: `Projet "${project.title}" mis à jour`,
+        userId: (session.user as any).id,
       }
     })
 

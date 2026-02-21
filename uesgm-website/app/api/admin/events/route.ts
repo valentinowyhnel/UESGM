@@ -250,7 +250,14 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
         imageUrl: finalImageUrl,
         status,
         publishedAt: finalPublishedAt,
-        createdById: user.id
+        createdById: user.id,
+        // Ajouter les images si présentes
+        images: images && images.length > 0 ? {
+          create: images.map((url: string, index: number) => ({
+            url,
+            order: index
+          }))
+        } : undefined
       },
       include: {
         createdBy: {
@@ -258,6 +265,9 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
         },
         _count: {
           select: { registrations: true }
+        },
+        images: {
+          orderBy: { order: 'asc' }
         }
       }
     })

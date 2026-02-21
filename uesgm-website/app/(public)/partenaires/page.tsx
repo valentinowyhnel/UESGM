@@ -39,13 +39,13 @@ export default function PartnersPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         <PartnerCard 
                             name="Conseil des Gabonais au Maroc (CGM)" 
-                            description="Représentation officielle"
-                            website="#"
+                            description="institution fédératrice des associations gabonaise au Maroc"
+                            website="https://www.facebook.com/share/18EMb7q43p/?mibextid=wwXIfr"
                             image="/images/Conseil des Gabonais au Maroc (CGM).jpeg"
                         />
                         <PartnerCard 
                             name="Agence Marocaine de Coopération Internationale (AMCI)" 
-                            description="Coopération bilatérale"
+                            description="Institution marocaine de coopération internationale"
                             website="https://www.amci.ma"
                             image="/images/Agence Marocaine de Coopération Internationale (AMCI).jpeg"
                         />
@@ -57,8 +57,8 @@ export default function PartnersPage() {
                         />
                         <PartnerCard 
                             name="CESAM" 
-                            description="Centre d'Études Supérieures Africaines"
-                            website="#"
+                            description="Confédération des Élèves, Étudiants, Stagiaires Africains et Étrangers au Maroc"
+                            website="https://cesamcentrale.org/"
                             image="/images/CESAM.jpeg"
                         />
                         <PartnerCard 
@@ -69,7 +69,7 @@ export default function PartnersPage() {
                         />
                         <PartnerCard 
                             name="Ambassade de la République Gabonaise au Maroc" 
-                            description="Représentation diplomatique officielle"
+                            description="Représentantion de la République Gabonaise près le Royaume du Maroc"
                             website="https://amba-maroc.demo2.nic.ga"
                             image="/images/Ambassade de la République Gabonaise au Maroc.jpeg"
                         />
@@ -88,9 +88,21 @@ export default function PartnersPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         <PartnerCard 
                             name="Smart Africa" 
-                            description="Innovation et technologie éducative"
+                            description="agence d'accompagnement d'académique"
                             website="https://smartstudent.africa"
                             image="/images/SMART AFRICA.jpg"
+                        />
+                        <PartnerCard 
+                            name="Edition Libellule" 
+                            description="Maison d'édition"
+                            website="https://www.facebook.com/share/1DoHQhc1gJ/?mibextid=wwXIfr"
+                            image="/images/Edition Libellule.jpg"
+                        />
+                        <PartnerCard 
+                            name="Atlantic Africa" 
+                            description="Agence de transit"
+                            website="https://www.facebook.com/share/1aBaPHozGL/?mibextid=wwXIfr"
+                            image="/images/Atlantic_Africa.jpg"
                         />
                     </div>
                 </section>

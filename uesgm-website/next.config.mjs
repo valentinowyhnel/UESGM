@@ -32,6 +32,16 @@ const nextConfig = {
     ],
   },
 
+  // Servir les fichiers uploadés depuis le dossier public/uploads
+  async rewrites() {
+    return [
+      {
+        source: '/uploads/:path*',
+        destination: '/uploads/:path*',
+      },
+    ]
+  },
+
   // ============================================
   // HEADERS DE SÉCURITÉ
   // ============================================
@@ -86,7 +96,12 @@ const nextConfig = {
   },
   
   // Webpack configuration
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
+    // Disable webpack cache in development to prevent cache issues
+    if (dev) {
+      config.cache = false;
+    }
+    
     // Only add this if you need to handle file-system modules
     if (!isServer) {
       config.resolve.fallback.fs = false;

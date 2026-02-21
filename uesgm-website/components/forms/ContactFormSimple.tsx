@@ -120,7 +120,7 @@ export function ContactFormSimple() {
             
             <Button 
                 type="submit" 
-                className="w-full bg-primary hover:bg-primary-light text-white font-bold h-12 transition-all duration-200" 
+                className="w-full bg-primary hover:bg-blue-700 text-white border-2 border-[#FFD700] font-bold h-12 transition-all duration-200 shadow-lg hover:shadow-[#FFD700]/30" 
                 disabled={isSubmitting}
             >
                 {isSubmitting ? (
@@ -129,7 +129,7 @@ export function ContactFormSimple() {
                         Envoi en cours...
                     </>
                 ) : (
-                    "Envoyer le message"
+                    "NOUS CONTACTER"
                 )}
             </Button>
         </form>

@@ -170,11 +170,29 @@ export default function NewProjectPage() {
         setIsSubmitting(true)
 
         try {
-            // Simuler l'upload des images
+            // Upload des images et récupération des URLs
+            const imageUrls: string[] = []
+            
             if (formData.images.length > 0) {
-                for (let i = 0; i <= 100; i += 10) {
-                    setUploadProgress(i)
-                    await new Promise(resolve => setTimeout(resolve, 50))
+                for (let i = 0; i < formData.images.length; i++) {
+                    const file = formData.images[i]
+                    const formDataUpload = new FormData()
+                    formDataUpload.append('file', file)
+                    
+                    const uploadResponse = await fetch('/api/admin/upload', {
+                        method: 'POST',
+                        body: formDataUpload
+                    })
+                    
+                    if (!uploadResponse.ok) {
+                        throw new Error(`Erreur lors de l'upload de l'image ${i + 1}`)
+                    }
+                    
+                    const uploadResult = await uploadResponse.json()
+                    imageUrls.push(uploadResult.fileUrl)
+                    
+                    // Mettre à jour la progression
+                    setUploadProgress(Math.round(((i + 1) / formData.images.length) * 100))
                 }
             }
 
@@ -190,6 +208,8 @@ export default function NewProjectPage() {
                 startDate: formData.startDate ? new Date(formData.startDate).toISOString() : null,
                 endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
                 isPublished: false, // Par défaut, non publié
+                imageUrl: imageUrls.length > 0 ? imageUrls[0] : null, // Première image comme image principale
+                images: imageUrls // Toutes les images
             }
 
             // Envoyer les données à l'API

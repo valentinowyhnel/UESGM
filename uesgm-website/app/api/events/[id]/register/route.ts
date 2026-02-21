@@ -26,7 +26,7 @@ export async function POST(
       where: { id: eventId },
       include: {
         _count: {
-          select: { attendees: true }  // Corrigé pour utiliser le bon nom de relation
+          select: { registrations: true }
         }
       }
     })

@@ -83,7 +83,10 @@ export async function POST(req: Request) {
     const antenneData = AntenneSchema.parse(body)
 
     const antenne = await prisma.antenne.create({
-      data: antenneData,
+      data: {
+        ...antenneData,
+        name: antenneData.city,
+      },
       include: {
         _count: {
           select: { 

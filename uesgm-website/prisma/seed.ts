@@ -103,11 +103,11 @@ async function main() {
   // ============================================
   
   const partners = [
-    { name: 'Ambassade du Gabon au Maroc', type: 'INSTITUTIONAL', order: 1 },
-    { name: 'Université Mohammed V', type: 'INSTITUTIONAL', order: 2 },
-    { name: 'Université Hassan II', type: 'INSTITUTIONAL', order: 3 },
-    { name: 'OCSID', type: 'ASSOCIATION', order: 4 },
-    { name: 'BGF', type: 'PRIVATE', order: 5 },
+    { name: 'Ambassade du Gabon au Maroc', type: 'INSTITUTIONAL' as const, order: 1 },
+    { name: 'Université Mohammed V', type: 'INSTITUTIONAL' as const, order: 2 },
+    { name: 'Université Hassan II', type: 'INSTITUTIONAL' as const, order: 3 },
+    { name: 'OCSID', type: 'ASSOCIATION' as const, order: 4 },
+    { name: 'BGF', type: 'PRIVATE' as const, order: 5 },
   ]
 
   for (const partner of partners) {

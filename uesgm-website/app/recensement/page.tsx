@@ -31,7 +31,7 @@ export default function RecensementPage() {
                                 <div className="absolute inset-x-0 bottom-0 h-1/3 bg-blue-600"></div>
                             </div>
                             <div>
-                                <h1 className="text-3xl font-bold text-white">Recensement UESGM</h1>
+                                <h1 className="text-3xl font-bold text-white">Recensement</h1>
                                 <p className="text-green-100">Gabonais au Maroc</p>
                             </div>
                         </div>
@@ -58,12 +58,10 @@ export default function RecensementPage() {
                                         </h2>
                                         <div className="space-y-4 text-gray-700">
                                             <p className="leading-relaxed">
-                                                Le recensement des Gabonais au Maroc est un <span className="font-bold text-green-600">acte citoyen fondamental</span> 
-                                                qui nous permet de mieux vous servir et de représenter la communauté gabonaise au Maroc.
+                                                Le recensement des Gabonais au Maroc est un <span className="font-bold text-green-600">acte citoyen fondamental</span> qui nous permet de mieux vous servir et de représenter la communauté gabonaise au Maroc.
                                             </p>
                                             <p className="leading-relaxed">
-                                                Vos données permettent une <span className="font-bold text-yellow-600">meilleure coordination</span> 
-                                                entre l'ambassade, l'UESGM et les autorités marocaines pour vous accompagner.
+                                                Vos données permettent une <span className="font-bold text-yellow-600">meilleure coordination</span> entre l'ambassade, l'UESGM et les autorités marocaines pour vous accompagner.
                                             </p>
                                         </div>
                                     </div>

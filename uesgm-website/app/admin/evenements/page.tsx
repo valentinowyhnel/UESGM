@@ -33,7 +33,7 @@ interface Event {
     location: string
     imageUrl?: string | null
     category: 'INTEGRATION' | 'ACADEMIC' | 'SOCIAL' | 'CULTURAL'
-    status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+    status: 'DRAFT' | 'PUBLISHED' | 'SCHEDULED' | 'ARCHIVED'
     startDate: string
     endDate?: string | null
     maxAttendees?: number | null
@@ -64,6 +64,7 @@ interface EventsResponse {
 const statusConfig = {
     DRAFT: { label: "Brouillon", variant: "secondary" as const, color: "bg-orange-100 text-orange-800" },
     PUBLISHED: { label: "Publié", variant: "default" as const, color: "bg-green-100 text-green-800" },
+    SCHEDULED: { label: "Programmé", variant: "outline" as const, color: "bg-blue-100 text-blue-800" },
     ARCHIVED: { label: "Archivé", variant: "outline" as const, color: "bg-gray-100 text-gray-800" }
 }
 
@@ -102,10 +103,28 @@ export default function AdminEventsPage() {
             eventSource.onopen = () => {
                 console.log('✅ Connecté au flux SSE des événements')
             }
-            eventSource.onmessage = (event) => {
+            
+            // Écouter les événements spécifiques
+            eventSource.addEventListener('event:created', () => {
+                console.log('📡 Nouvel événement créé')
+                loadEvents()
+            })
+            
+            eventSource.addEventListener('event:updated', (event) => {
                 console.log('📡 Mise à jour reçue:', event.data)
                 loadEvents()
-            }
+            })
+            
+            eventSource.addEventListener('event:published', () => {
+                console.log('📡 Événement publié')
+                loadEvents()
+            })
+            
+            eventSource.addEventListener('event:any', (event) => {
+                console.log('📡 Mise à jour reçue:', event.data)
+                loadEvents()
+            })
+            
             eventSource.onerror = () => {
                 console.log('❌ Erreur SSE, reconnexion...')
                 eventSource?.close()
@@ -258,6 +277,7 @@ export default function AdminEventsPage() {
                                 <SelectItem value="all">Tous les statuts</SelectItem>
                                 <SelectItem value="DRAFT">Brouillon</SelectItem>
                                 <SelectItem value="PUBLISHED">Publié</SelectItem>
+                                <SelectItem value="SCHEDULED">Programmé</SelectItem>
                                 <SelectItem value="ARCHIVED">Archivé</SelectItem>
                             </SelectContent>
                         </Select>
@@ -367,12 +387,30 @@ export default function AdminEventsPage() {
                                                 
                                                 {/* Actions rapides de statut */}
                                                 {event.status === 'DRAFT' && (
+                                                    <>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm"
+                                                            onClick={() => handleStatusChange(event.id, 'PUBLISHED')}
+                                                        >
+                                                            Publier
+                                                        </Button>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm"
+                                                            onClick={() => handleStatusChange(event.id, 'SCHEDULED')}
+                                                        >
+                                                            Programmer
+                                                        </Button>
+                                                    </>
+                                                )}
+                                                {event.status === 'SCHEDULED' && (
                                                     <Button 
                                                         variant="outline" 
                                                         size="sm"
                                                         onClick={() => handleStatusChange(event.id, 'PUBLISHED')}
                                                     >
-                                                        Publier
+                                                        Publier maintenant
                                                     </Button>
                                                 )}
                                                 {event.status === 'PUBLISHED' && (

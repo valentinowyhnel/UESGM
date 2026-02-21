@@ -41,7 +41,7 @@ export default function Home() {
                 asChild 
                 variant="outline" 
                 size="lg"
-                className="border-2 border-blue-400 text-white hover:bg-blue-800 hover:border-amber-400 font-semibold text-lg px-8 py-6 h-auto transition-all duration-300"
+                className="bg-black border-2 border-[#FFD700] text-[#FFD700] hover:bg-[#1a1a1a] hover:border-[#FFD700] font-bold text-lg px-8 py-6 h-auto transition-all duration-300 shadow-lg hover:shadow-[#FFD700]/20"
               >
                 <Link href="/contact">
                   Nous contacter

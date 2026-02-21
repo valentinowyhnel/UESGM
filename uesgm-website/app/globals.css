@@ -95,12 +95,12 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1;
-  font-family: var(--font-brush), cursive;
+  font-family: var(--font-brush), sans-serif;
 }
 
 /* Classe pour la police Brush Script */
 .font-brush {
-  font-family: var(--font-brush), cursive;
+  font-family: var(--font-brush), sans-serif;
 }
 
 /* Composants personnalisés */

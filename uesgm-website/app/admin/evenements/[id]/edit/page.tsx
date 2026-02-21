@@ -12,7 +12,9 @@ async function getEvent(id: string) {
       where: { id },
       include: {
         antennes: {
-          select: { id: true, city: true }
+          include: {
+            antenne: { select: { id: true, city: true } }
+          }
         }
       }
     })
@@ -51,7 +53,7 @@ export default async function EditEventPage({
     published: !!event.publishedAt,
     image: event.imageUrl || undefined,
     images: [], // Le modèle Event ne contient pas de champ images
-    antenneIds: event.antennes.map((a: { id: string }) => a.id),
+    antenneIds: event.antennes.map((a: { antenne: { id: string } }) => a.antenne.id),
   }
 
   return (

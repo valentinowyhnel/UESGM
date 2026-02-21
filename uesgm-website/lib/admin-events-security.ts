@@ -52,7 +52,7 @@ export const eventUpdateSchema = eventSchema.partial()
 
 // Schéma pour le changement de statut
 export const eventStatusSchema = z.object({
-  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED'])
+  status: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED', 'ARCHIVED'])
 })
 
 // Middleware de vérification admin

@@ -26,7 +26,7 @@ export function Header() {
                 <div className="flex items-center justify-between h-16">
                     {/* Logo */}
                     <Link href="/" className="flex-shrink-0 flex items-center justify-center">
-                        <div className="w-12 h-10 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center border-2 border-amber-400">
+                        <div className="w-12 h-10 rounded-md overflow-hidden bg-white flex items-center justify-center">
                             <img 
                                 src="/images/UESM_logo.jpg" 
                                 alt="UESGM Logo" 

@@ -14,7 +14,7 @@ const bureauStructure = {
         name: "MINTSA NDONG Emery Désiré",
         role: "Président",
         location: "Casablanca",
-        email: "mintsaemerydesire2000@gmail.com",
+        email: "uesgmmaroc@gmail.com",
         phone: "+212 774-975947",
         image: "/images/president.jpg"
     },
@@ -207,16 +207,14 @@ export default function BureauPage() {
                             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
                                 <Shield className="w-6 h-6 text-white" />
                             </div>
-                            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-900 to-gold bg-clip-text text-transparent">
-                                Bureau Exécutif
+                            <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-800 via-blue-600 to-gold bg-clip-text text-transparent">
+                                Union des Étudiants et Stagiaires Gabonais au Maroc
                             </h1>
                             <div className="w-12 h-12 bg-gradient-to-br from-gold to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
                                 <Award className="w-6 h-6 text-white" />
                             </div>
                         </div>
-                        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                            Union des Étudiants Gabonais au Maroc • Mandat 2025-2026
-                        </p>
+                        <p className="text-xl font-bold text-blue-800 mt-4">Bureau central 2025-2026</p>
                     </div>
                 </div>
             </div>
@@ -305,7 +303,7 @@ export default function BureauPage() {
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
                             <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl px-6 py-3 border border-blue-200">
                                 <Mail className="w-5 h-5 text-blue-600 inline mr-2" />
-                                <span className="text-blue-700 font-semibold">mintsaemerydesire2000@gmail.com</span>
+                                <span className="text-blue-700 font-semibold">uesgmmaroc@gmail.com</span>
                             </div>
                             <div className="bg-gradient-to-r from-gold/20 to-gold/30 rounded-xl px-6 py-3 border border-gold/30">
                                 <Phone className="w-5 h-5 text-gold inline mr-2" />

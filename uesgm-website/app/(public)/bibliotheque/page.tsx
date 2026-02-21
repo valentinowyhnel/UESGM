@@ -14,6 +14,7 @@ interface Document {
     title: string
     description?: string
     category: string
+    tags?: string[]
     size?: string
     fileSize?: number
     date?: string
@@ -25,16 +26,38 @@ interface Document {
     isPublished?: boolean
 }
 
-// Types de documents
-const categories = ["Tous", "Statuts", "Rapports", "Guides", "Académique", "Juridique"]
+// Types de documents - Correspondance frontend/API
+const categories = [
+    { label: "Tous", value: "all" },
+    { label: "Statuts", value: "STATUTS" },
+    { label: "Rapports", value: "RAPPORT" },
+    { label: "Guides", value: "GUIDE" },
+    { label: "Livres", value: "LIVRE" },
+    { label: "Articles", value: "ARTICLE" },
+    { label: "Académique", value: "ACADEMIQUE" },
+    { label: "Juridique", value: "JURIDIQUE" },
+    { label: "Administratif", value: "ADMINISTRATIF" },
+]
 
-// Données fictives (fallback)
+// Mapping pour l'affichage
+const categoryValueToLabel: Record<string, string> = {
+    "STATUTS": "Statuts",
+    "RAPPORT": "Rapports",
+    "GUIDE": "Guides",
+    "LIVRE": "Livres",
+    "ARTICLE": "Articles",
+    "ACADEMIQUE": "Académique",
+    "JURIDIQUE": "Juridique",
+    "ADMINISTRATIF": "Administratif",
+}
+
+// Données fictives (fallback) - utilisent les valeurs API
 const mockDocuments: Document[] = [
-    { id: "1", title: "Statuts de l'UESGM", category: "Statuts", size: "2.4 MB", date: "2024", type: "PDF" },
-    { id: "2", title: "Rapport Moral 2024-2025", category: "Rapports", size: "5.1 MB", date: "2025", type: "PDF" },
-    { id: "3", title: "Guide du Nouvel Arrivant", category: "Guides", size: "12 MB", date: "2025", type: "PDF" },
-    { id: "4", title: "Liste des Universités Reconnues", category: "Académique", size: "1.2 MB", date: "2026", type: "XLSX" },
-    { id: "5", title: "Convention de Logement", category: "Juridique", size: "0.5 MB", date: "2023", type: "PDF" },
+    { id: "1", title: "Statuts de l'UESGM", category: "STATUTS", size: "2.4 MB", date: "2024", type: "PDF" },
+    { id: "2", title: "Rapport Moral 2024-2025", category: "RAPPORT", size: "5.1 MB", date: "2025", type: "PDF" },
+    { id: "3", title: "Guide du Nouvel Arrivant", category: "GUIDE", size: "12 MB", date: "2025", type: "PDF" },
+    { id: "4", title: "Liste des Universités Reconnues", category: "ACADEMIQUE", size: "1.2 MB", date: "2026", type: "XLSX" },
+    { id: "5", title: "Convention de Logement", category: "JURIDIQUE", size: "0.5 MB", date: "2023", type: "PDF" },
 ]
 
 export default function LibraryPage() {
@@ -65,7 +88,7 @@ function LibraryPageContent() {
     const searchParams = useSearchParams()
     const initialSearch = useMemo(() => searchParams.get("search") || "", [searchParams])
     
-    const [activeCategory, setActiveCategory] = useState("Tous")
+    const [activeCategory, setActiveCategory] = useState("all")
     const [searchQuery, setSearchQuery] = useState(initialSearch)
     const [documents, setDocuments] = useState<Document[]>(mockDocuments)
     const [loading, setLoading] = useState(true)
@@ -77,7 +100,7 @@ function LibraryPageContent() {
     async function fetchDocuments() {
         try {
             const params = new URLSearchParams({
-                category: activeCategory === "Tous" ? "" : activeCategory,
+                category: activeCategory === "all" ? "" : activeCategory,
                 search: searchQuery,
                 published: 'true'
             }).toString()
@@ -182,11 +205,27 @@ function LibraryPageContent() {
         fetchDocuments()
     }, [activeCategory, searchQuery])
 
-    const filteredDocs = Array.isArray(documents) ? documents.filter((doc) => {
-        const matchesCategory = activeCategory === "Tous" || doc.category === activeCategory
-        const matchesSearch = doc.title?.toLowerCase().includes(searchQuery.toLowerCase())
-        return matchesCategory && matchesSearch
-    }) : []
+    const filteredDocs = useMemo(() => {
+        if (!Array.isArray(documents)) return []
+        
+        return documents.filter((doc) => {
+            // Filtrage par catégorie - vérifier la valeur backend ou l'label affiché
+            const matchesCategory = activeCategory === "all" || 
+                doc.category === activeCategory ||
+                categoryValueToLabel[doc.category] === activeCategory
+            
+            // Filtrage par recherche - chercher dans titre, description et tags
+            const searchLower = searchQuery.toLowerCase().trim()
+            const matchesSearch = !searchLower || 
+                doc.title?.toLowerCase().includes(searchLower) ||
+                doc.description?.toLowerCase().includes(searchLower) ||
+                (Array.isArray(doc.tags) && doc.tags.some((tag: string) => 
+                    tag.toLowerCase().includes(searchLower)
+                ))
+            
+            return matchesCategory && matchesSearch
+        })
+    }, [documents, activeCategory, searchQuery])
 
     // Fonction de téléchargement
     const handleDownload = (doc: Document) => {
@@ -245,14 +284,15 @@ function LibraryPageContent() {
                         <div className="space-y-2">
                             {categories.map(cat => (
                                 <button
-                                    key={cat}
-                                    onClick={() => setActiveCategory(cat)}
-                                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${activeCategory === cat
+                                    key={cat.value}
+                                    onClick={() => setActiveCategory(cat.value)}
+                                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                                        activeCategory === cat.value
                                             ? "bg-primary text-white font-medium"
                                             : "hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
-                                        }`}
+                                    }`}
                                 >
-                                    {cat}
+                                    {cat.label}
                                 </button>
                             ))}
                         </div>
@@ -282,7 +322,9 @@ function LibraryPageContent() {
                                         <div className="flex-grow min-w-0">
                                             <h4 className="font-bold font-montserrat truncate">{doc.title}</h4>
                                             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                                                <Badge variant="outline" className="text-xs">{doc.category}</Badge>
+                                                <Badge variant="outline" className="text-xs">
+                                                {categoryValueToLabel[doc.category] || doc.category}
+                                            </Badge>
                                                 <span>•</span>
                                                 <span>{doc.size}</span>
                                                 <span>•</span>

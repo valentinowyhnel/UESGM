@@ -31,8 +31,7 @@ export default function ContactPage() {
                             <Mail className="w-6 h-6 text-gold flex-shrink-0 mt-1" />
                             <div>
                                 <h3 className="font-bold text-lg">Email</h3>
-                                <p className="text-gray-200">contact@uesgm.ma</p>
-                                <p className="text-gray-200">support@uesgm.ma</p>
+                                <p className="text-gray-200">uesgmmaroc@gmail.com</p>
                             </div>
                         </div>
 

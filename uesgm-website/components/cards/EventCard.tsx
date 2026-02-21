@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,10 +26,20 @@ export function EventCard({ event, isPast = false }: EventCardProps) {
     return (
         <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group flex flex-col h-full">
             <div className="h-48 bg-gray-200 relative overflow-hidden">
-                {/* Placeholder pour l'image */}
-                <div className="absolute inset-0 bg-primary/10 flex items-center justify-center text-primary/40 font-bold text-2xl">
-                    image
-                </div>
+                {event.image ? (
+                    <img 
+                        src={event.image}
+                        alt={event.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/images/placeholder-image.png'
+                        }}
+                    />
+                ) : (
+                    <div className="absolute inset-0 bg-primary/10 flex items-center justify-center text-primary/40 font-bold text-2xl">
+                        image
+                    </div>
+                )}
                 <Badge className="absolute top-4 right-4 bg-gold text-primary-dark font-bold hover:bg-gold-light">
                     {event.category}
                 </Badge>

@@ -1,3 +1,7 @@
+// Désactiver le cache pour récupérer les projets en temps réel
+export const dynamicParams = true
+export const revalidate = 0
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -17,6 +21,9 @@ async function getProject(slug: string) {
         tags: true,
         createdBy: {
           select: { name: true, email: true, image: true }
+        },
+        images: {
+          orderBy: { order: 'asc' }
         }
       }
     })
@@ -137,6 +144,25 @@ export default async function ProjectDetailPage({ params }: { params: { slug: st
             className="object-cover"
             priority
           />
+        </div>
+      )}
+
+      {/* Galerie de photos */}
+      {project.images && project.images.length > 0 && (
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold mb-6">Galerie photos</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {project.images.map((image, index) => (
+              <div key={image.id} className="relative aspect-square rounded-lg overflow-hidden">
+                <Image
+                  src={image.url}
+                  alt={image.caption || `${project.title} - Image ${index + 1}`}
+                  fill
+                  className="object-cover hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

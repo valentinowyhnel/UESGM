@@ -29,10 +29,12 @@ export async function GET(
       where: { id },
       include: {
         antennes: {
-          select: { id: true, city: true, responsable: true }
+          include: {
+            antenne: { select: { id: true, city: true, name: true } }
+          }
         },
         _count: {
-          select: { attendees: true }
+          select: { registrations: true }
         }
       }
     })
@@ -49,7 +51,15 @@ export async function GET(
     const userRole = (session?.user as any)?.role
     const isAdmin = session && userRole && ['ADMIN', 'SUPER_ADMIN'].includes(userRole)
 
-    if (!event.publishedAt && !isAdmin) {
+    // Vérifier si l'événement est accessible:
+    // - Publié (status = PUBLISHED)
+    // - Programmée dont la date de publication est passée
+    // - Ou admin
+    const now = new Date()
+    const isPublished = event.status === 'PUBLISHED' || 
+      (event.status === 'SCHEDULED' && event.publishedAt && event.publishedAt <= now)
+    
+    if (!isPublished && !isAdmin) {
       return NextResponse.json(
         { error: 'Événement non trouvé' },
         { status: 404 }
@@ -108,10 +118,12 @@ export async function PUT(
       data: updatePayload,
       include: {
         antennes: {
-          select: { id: true, city: true }
+          include: {
+            antenne: { select: { id: true, city: true, name: true } }
+          }
         },
         _count: {
-          select: { attendees: true }
+          select: { registrations: true }
         }
       }
     })
@@ -205,10 +217,12 @@ export async function PATCH(
       data: { publishedAt: published ? new Date() : null },
       include: {
         antennes: {
-          select: { id: true, city: true }
+          include: {
+            antenne: { select: { id: true, city: true, name: true } }
+          }
         },
         _count: {
-          select: { attendees: true }
+          select: { registrations: true }
         }
       }
     })

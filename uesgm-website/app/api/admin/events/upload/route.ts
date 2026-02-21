@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAdminAuth, logAdminAction } from '@/lib/admin-events-security'
+import { writeFile, mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
+import path from 'path'
 
 // Configuration pour l'upload
 const UPLOAD_CONFIG = {
@@ -50,15 +53,24 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
 
     // Génération du nom de fichier
     const fileName = generateFileName(file.name)
-    const fileUrl = `${UPLOAD_CONFIG.uploadDir}${fileName}`
+    const fileUrl = `/uploads/events/${fileName}`
 
-    // En production, vous devriez uploader vers un service de stockage
-    // comme AWS S3, Cloudinary, ou Supabase Storage
-    // Pour l'instant, nous simulons l'upload
-    
-    // Simulation de l'upload du fichier
+    // Convertir le fichier en buffer
     const buffer = await file.arrayBuffer()
-    console.log(`📁 Upload simulé: ${fileName} (${file.size} bytes)`)
+
+    // Sauvegarder le fichier dans le dossier public/uploads/events
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'events')
+    
+    // Créer le répertoire s'il n'existe pas
+    if (!existsSync(uploadsDir)) {
+      await mkdir(uploadsDir, { recursive: true })
+    }
+    
+    // Sauvegarder le fichier
+    const filePath = path.join(uploadsDir, fileName)
+    await writeFile(filePath, Buffer.from(buffer))
+    
+    console.log(`📁 Fichier sauvegardé: ${filePath} (${file.size} bytes)`)
     
     // En production, vous feriez quelque chose comme:
     // await storageService.upload(fileName, buffer, file.type)

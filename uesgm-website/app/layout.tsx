@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Montserrat, Lato, Dancing_Script } from "next/font/google";
+import { Inter, Montserrat, Lato, Anton } from "next/font/google";
 import "./globals.css";
 
-const dancingScript = Dancing_Script({
+const anton = Anton({
+  weight: "400",
   subsets: ["latin"],
-  variable: "--font-brush", // Police style Brush Script
+  variable: "--font-brush",
   display: "swap",
 });
 const inter = Inter({
@@ -76,7 +77,7 @@ export default function RootLayout({
   return (
     <html 
       lang="fr" 
-      className={`${inter.variable} ${montserrat.variable} ${lato.variable} ${dancingScript.variable}`}
+      className={`${inter.variable} ${montserrat.variable} ${lato.variable} ${anton.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-background font-sans antialiased">

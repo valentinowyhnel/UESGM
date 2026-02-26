@@ -1,0 +1,54 @@
+name: UESGM CI/CD
+
+on:
+  push:
+    branches: [ main, staging ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run Lint
+        run: pnpm run lint
+
+      - name: Run Typecheck
+        run: pnpm run typecheck
+
+      - name: Run Unit Tests
+        run: pnpm test
+
+      - name: Generate Prisma Client
+        run: pnpm prisma generate
+
+      - name: Build
+        run: pnpm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+
+  deploy:
+    needs: lint-and-test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Vercel
+        run: echo "Deploying to Vercel..."
+        # Add actual Vercel deployment action here

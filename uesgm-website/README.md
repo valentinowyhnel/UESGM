@@ -1,52 +1,62 @@
-# UESGM Website - Documentation Technique
+# UESGM - Union des Étudiants et Stagiaires Gabonais au Maroc
 
-## Vue d'ensemble
-Site web institutionnel pour l'Union des Étudiants et Stagiaires Gabonais au Maroc (UESGM).
-- **Framework**: Next.js 14 (App Router)
-- **Styling**: Tailwind CSS (v4) + shadcn/ui
-- **Database**: PostgreSQL + Prisma
-- **Authentification**: NextAuth.js (Prévu)
+## Architecture Backend
+- **Framework**: Next.js 14/15 (App Router)
+- **ORM**: Prisma
+- **Database**: PostgreSQL (Supabase)
+- **Authentication**: NextAuth.js (RBAC: SUPER_ADMIN, ADMIN, MODERATOR, MEMBER, PUBLIC)
+- **Rate Limiting**: Redis (Upstash) via `@upstash/ratelimit`
+- **Uploads**: Supabase Storage (Signed URLs)
+- **Validation**: Zod (Server-side) + React Hook Form (Client-side)
+- **Monitoring**: Sentry
 
 ## Installation
 
-1. **Pré-requis**
-   - Node.js 18+
-   - PostgreSQL
-
-2. **Installation des dépendances**
+1. Cloner le repo
+2. Installer les dépendances :
    ```bash
-   npm install
+   pnpm install
+   ```
+3. Configurer les variables d'environnement (voir `.env.example`)
+4. Générer le client Prisma :
+   ```bash
+   pnpm prisma generate
+   ```
+5. Appliquer les migrations ou synchroniser la DB :
+   ```bash
+   pnpm prisma db push
+   ```
+6. Lancer le seed :
+   ```bash
+   pnpm prisma db seed
+   ```
+7. Lancer en dev :
+   ```bash
+   pnpm dev
    ```
 
-3. **Configuration de la Base de Données**
-   - Copiez `.env.example` (ou utilisez `.env`)
-   - Mettez à jour `DATABASE_URL` avec vos identifiants PostgreSQL.
-   - Générez le client Prisma :
-     ```bash
-     npx prisma generate
-     ```
-   - Poussez le schéma :
-     ```bash
-     npx prisma db push
-     ```
+## API Endpoints
 
-4. **Lancement**
-   ```bash
-   npm run dev
-   ```
-
-## Structure du Projet
-
-- `app/(public)` : Pages publiques (Accueil, À propos, etc.)
-- `app/admin` : Panel d'administration (sécurisé)
-- `components/ui` : Composants de base (shadcn)
-- `components/layout` : Header, Footer
-- `components/sections` : Sections de page (Hero, Statistics)
-- `lib` : Utilitaires et configuration Prisma
-
-## Easter Egg
-Un Easter Egg est caché sur le site. Essayez le code suivant :
-`↑ ↑ ↓ ↓ ← → ← → B A`
+- `POST /api/contact`: Envoi de message de contact (Public, Rate-limited)
+- `GET /api/events`: Liste des événements (Public)
+- `POST /api/events`: Création d'événement (Admin+)
+- `GET /api/partners`: Liste des partenaires
+- `GET /api/projects`: Liste des projets
+- `GET /api/documents`: Liste des documents (Public)
+- `POST /api/documents`: Soumission de document (Member+)
+- `GET /api/executive-members`: Liste des membres du bureau
+- `GET /api/statistics`: Statistiques agrégées (Cached)
+- `GET /api/search`: Recherche globale (Events, Projects, Documents, Partners)
+- `POST /api/upload`: Génération d'URL signée pour upload (Admin+)
 
 ## Déploiement
-Le site est prêt à être déployé sur Vercel. Assurez-vous de configurer les variables d'environnement dans le dashboard Vercel.
+- **Plateforme**: Vercel
+- **Base de données**: Supabase
+- **Redis**: Upstash
+- **Migrations**: `pnpm prisma migrate deploy` dans la CI/CD.
+
+## Sécurité
+- Headers HSTS, CSP, Permissions-Policy configurés via middleware.
+- Rate limiting par IP via Redis.
+- Validation stricte des entrées via Zod.
+- RBAC intégré à NextAuth et appliqué aux routes API.

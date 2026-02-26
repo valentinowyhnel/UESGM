@@ -82,6 +82,26 @@ function addSecurityHeaders(response: NextResponse) {
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+
+  // CSP stricte
+  const cspHeader = `
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' *.supabase.co;
+    style-src 'self' 'unsafe-inline' fonts.googleapis.com;
+    img-src 'self' blob: data: *.supabase.co images.unsplash.com res.cloudinary.com;
+    font-src 'self' fonts.gstatic.com;
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'none';
+    block-all-mixed-content;
+    upgrade-insecure-requests;
+  `.replace(/\s{2,}/g, ' ').trim()
+
+  response.headers.set('Content-Security-Policy', cspHeader)
+
   return response
 }
 

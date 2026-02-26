@@ -161,9 +161,9 @@ export const authOptions: NextAuthOptions = {
             }
           })
 
-          // Vérifier que l'utilisateur a un rôle valide (ADMIN ou SUPER_ADMIN)
+          // Vérifier que l'utilisateur a un rôle valide (ADMIN, SUPER_ADMIN ou MODERATOR pour accès console)
           const userRole = user.role as string
-          if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
+          if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN' && userRole !== 'MODERATOR') {
             console.error(`❌ Auth: Rôle insuffisant pour ${credentials.email}: ${userRole}`)
             return null
           }

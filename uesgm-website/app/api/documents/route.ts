@@ -5,21 +5,22 @@ import { prisma } from "@/lib/prisma"
 import { authOptions } from "@/lib/auth/auth-options"
 import { hasRequiredRole } from "@/lib/auth/rbac"
 
-const eventSchema = z.object({
-  title: z.string().min(3).max(100),
+const documentSchema = z.object({
+  title: z.string().min(2),
   description: z.string().optional(),
-  date: z.string().or(z.date()).transform(val => new Date(val)),
-  location: z.string().optional(),
   category: z.string().optional(),
-  imageUrl: z.string().url().optional().nullable(),
+  tags: z.array(z.string()).default([]),
+  fileUrl: z.string().url(),
+  fileType: z.string(),
+  fileSize: z.number().optional(),
   published: z.boolean().default(false),
 })
 
 const querySchema = z.object({
-  page: z.coerce.number().min(1).default(1),
-  per: z.coerce.number().min(1).max(100).default(10),
-  status: z.enum(["upcoming", "past", "all"]).default("upcoming"),
+  search: z.string().optional(),
   category: z.string().optional(),
+  page: z.coerce.number().min(1).default(1),
+  per: z.coerce.number().min(1).max(100).default(20),
 })
 
 export async function GET(req: NextRequest) {
@@ -27,51 +28,44 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const query = querySchema.parse(Object.fromEntries(searchParams))
 
-    const now = new Date()
     const where: any = {
       published: true,
-    }
-
-    if (query.status === "upcoming") {
-      where.date = { gte: now }
-    } else if (query.status === "past") {
-      where.date = { lt: now }
     }
 
     if (query.category) {
       where.category = query.category
     }
 
-    const [events, total] = await Promise.all([
-      prisma.event.findMany({
+    if (query.search) {
+      where.OR = [
+        { title: { contains: query.search, mode: 'insensitive' } },
+        { description: { contains: query.search, mode: 'insensitive' } },
+        { tags: { has: query.search } }
+      ]
+    }
+
+    const [documents, total] = await Promise.all([
+      prisma.document.findMany({
         where,
-        orderBy: { date: query.status === "past" ? "desc" : "asc" },
+        orderBy: { createdAt: "desc" },
         skip: (query.page - 1) * query.per,
         take: query.per,
-        include: {
-          _count: {
-            select: { attendees: true }
-          }
-        }
       }),
-      prisma.event.count({ where }),
+      prisma.document.count({ where }),
     ])
 
     return NextResponse.json({
       success: true,
-      data: events,
+      data: documents,
       meta: {
+        total,
         page: query.page,
         per: query.per,
-        total,
         totalPages: Math.ceil(total / query.per),
       }
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Query parameters invalides", details: error.errors }, { status: 400 })
-    }
-    console.error("GET Events Error:", error)
+    console.error("GET Documents Error:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }
@@ -79,33 +73,28 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session || !hasRequiredRole(session.user?.role, "ADMIN")) {
+    if (!session || !hasRequiredRole(session.user?.role, "MEMBER")) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 403 })
     }
 
     const body = await req.json()
-    const validatedData = eventSchema.parse(body)
+    const validatedData = documentSchema.parse(body)
 
-    const slug = validatedData.title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, "")
-      .replace(/\s+/g, "-")
-      .trim()
-
-    const event = await prisma.event.create({
+    const document = await prisma.document.create({
       data: {
         ...validatedData,
-        slug,
-        isPast: validatedData.date < new Date(),
-      }
+        userId: session.user.id,
+        submittedByEmail: session.user.email,
+        submittedByName: session.user.name,
+      },
     })
 
-    return NextResponse.json({ success: true, data: event }, { status: 201 })
+    return NextResponse.json({ success: true, data: document }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Données invalides", details: error.errors }, { status: 400 })
     }
-    console.error("POST Event Error:", error)
+    console.error("POST Document Error:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

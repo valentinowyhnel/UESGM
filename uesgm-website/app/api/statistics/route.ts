@@ -1,190 +1,69 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { redis } from "@/lib/redis"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/lib/auth/auth-options"
+import { hasRequiredRole } from "@/lib/auth/rbac"
 
-// GET - Statistiques du site
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url)
-    const detailed = searchParams.get('detailed') === 'true'
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    const isAdmin = session && userRole && ['ADMIN', 'SUPER_ADMIN'].includes(userRole)
+    // Essayer de récupérer depuis le cache Redis
+    const cachedStats = await redis.get("uesgm:stats:public")
+    if (cachedStats) {
+      return NextResponse.json({ success: true, data: cachedStats, cached: true })
+    }
 
-    // Statistiques de base (publiques)
-    const baseStats = await prisma.statistics.findFirst({
-      select: {
-        totalMembers: true,
-        totalAntennes: true,
-        totalEvents: true,
-        updatedAt: true,
-      }
-    })
-
-    // Comptes en temps réel
-    const [
-      totalEvents,
-      publishedEvents,
-      upcomingEvents,
-      totalProjects,
-      publishedProjects,
-      totalDocuments,
-      publishedDocuments,
-      totalPartners,
-      totalAntennes,
-      totalNewsletterSubscribers,
-      activeNewsletterSubscribers,
-      totalContactMessages,
-      unreadContactMessages,
-    ] = await Promise.all([
-      prisma.event.count(),
-      prisma.event.count({ where: { status: 'PUBLISHED' } }),
-      prisma.event.count({ 
-        where: { 
-          status: 'PUBLISHED',
-          startDate: { gte: new Date() }
-        } 
-      }),
+    // Sinon agréger les données
+    const [eventCount, projectCount, memberCount, documentCount] = await Promise.all([
+      prisma.event.count({ where: { published: true } }),
       prisma.project.count(),
-      prisma.project.count({ where: { isPublished: true } }),
-      prisma.document.count(),
-      prisma.document.count({ where: { isPublished: true } }),
-      prisma.partner.count(),
-      prisma.antenne.count(),
-      prisma.newsletter.count(),
-      prisma.newsletter.count({ where: { isActive: true } }),
-      prisma.contactMessage.count(),
-      prisma.contactMessage.count({ where: { status: 'PENDING' } }),
+      prisma.executiveMember.count(),
+      prisma.document.count({ where: { published: true } }),
     ])
 
-    const stats: any = {
-      // Statistiques générales
-      overview: {
-        totalEvents,
-        publishedEvents,
-        upcomingEvents,
-        totalProjects,
-        publishedProjects,
-        totalDocuments,
-        publishedDocuments,
-        totalPartners,
-        totalAntennes,
-      },
-      
-      // Engagement
-      engagement: {
-        totalNewsletterSubscribers,
-        activeNewsletterSubscribers,
-        totalContactMessages,
-        unreadContactMessages,
-      },
-      
-      // Dernière mise à jour
-      lastUpdated: baseStats?.updatedAt || new Date(),
+    const stats = {
+      events: eventCount,
+      projects: projectCount,
+      members: memberCount,
+      documents: documentCount,
     }
 
-    // Statistiques détaillées (admin uniquement)
-    if (detailed && isAdmin) {
-      const [
-        eventsByCategory,
-        eventsByMonth,
-        projectsByStatus,
-        documentsByCategory,
-        partnersByType,
-        recentActivity,
-        monthlyGrowth,
-      ] = await Promise.all([
-        // Événements par catégorie (publiés uniquement)
-        prisma.event.groupBy({
-          by: ['category'],
-          where: { status: 'PUBLISHED' },
-          _count: { id: true },
-        }),
-        // Événements par mois (12 derniers mois)
-        prisma.$queryRaw`
-          SELECT 
-            DATE_TRUNC('month', "startDate") as month,
-            COUNT(*) as count
-          FROM "Event"
-          WHERE "status" = 'PUBLISHED'
-            AND "startDate" >= NOW() - INTERVAL '1 year'
-          GROUP BY DATE_TRUNC('month', "startDate")
-          ORDER BY month DESC
-          LIMIT 12
-        `,
-        // Projets par statut
-        prisma.project.groupBy({
-          by: ['status'],
-          where: { isPublished: true },
-          _count: { id: true },
-        }),
-        // Documents par catégorie
-        prisma.document.groupBy({
-          by: ['category'],
-          where: { isPublished: true },
-          _count: { id: true },
-        }),
-        // Partenaires par type
-        prisma.partner.groupBy({
-          by: ['type'],
-          _count: { id: true },
-        }),
-        // Activité récente (30 derniers jours)
-        prisma.contactMessage.findMany({
-          where: {
-            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            subject: true,
-            status: true,
-            createdAt: true,
-          }
-        }),
-        
-        // Croissance mensuelle (6 derniers mois)
-        prisma.contactMessage.groupBy({
-          by: ['createdAt'],
-          where: {
-            createdAt: { gte: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000) }
-          },
-          _count: { id: true },
-        }),
-      ])
+    // Mettre en cache pour 5 minutes
+    await redis.set("uesgm:stats:public", JSON.stringify(stats), { ex: 300 })
 
-      stats.detailed = {
-        breakdowns: {
-          eventsByCategory,
-          projectsByStatus,
-          documentsByCategory,
-          partnersByType,
-        },
-        activity: {
-          recent: recentActivity,
-          monthlyGrowth,
-        },
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: stats,
-      meta: {
-        isAdmin,
-        detailed,
-        generatedAt: new Date().toISOString(),
-      }
-    })
+    return NextResponse.json({ success: true, data: stats, cached: false })
   } catch (error) {
-    console.error('❌ Erreur GET /api/statistics:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    console.error("GET Statistics Error:", error)
+    // Fallback if Redis fails
+    return NextResponse.json({
+        success: true,
+        data: { events: 0, projects: 0, members: 0, documents: 0 },
+        error: "Redis fallback"
+    })
   }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+      const session = await getServerSession(authOptions)
+      if (!session || !hasRequiredRole(session.user?.role, "ADMIN")) {
+        return NextResponse.json({ error: "Non autorisé" }, { status: 403 })
+      }
+
+      const { key, value } = await req.json()
+
+      const stat = await prisma.statistics.upsert({
+        where: { key },
+        update: { value },
+        create: { key, value },
+      })
+
+      // Invalider le cache public
+      await redis.del("uesgm:stats:public")
+
+      return NextResponse.json({ success: true, data: stat })
+    } catch (error) {
+      console.error("POST Statistics Error:", error)
+      return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
+    }
 }

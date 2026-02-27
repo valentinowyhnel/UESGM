@@ -1,0 +1,58 @@
+name: UESGM CI/CD
+
+on:
+  push:
+    branches: [ main, staging ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 8
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'pnpm'
+        cache-dependency-path: uesgm-website/pnpm-lock.yaml
+
+    - name: Install dependencies
+      run: cd uesgm-website && pnpm install
+
+    - name: Prisma Generate
+      run: cd uesgm-website && pnpm prisma generate
+
+    - name: Lint
+      run: cd uesgm-website && pnpm lint
+
+    - name: Type Check
+      run: cd uesgm-website && pnpm typecheck
+
+    - name: Run Tests
+      run: cd uesgm-website && pnpm test
+
+    - name: Build
+      run: cd uesgm-website && pnpm build
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Vercel
+        run: echo "Deploying to Vercel..."
+        # Use Vercel Action or other deployment tools here

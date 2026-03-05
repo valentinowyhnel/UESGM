@@ -4,7 +4,12 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { rateLimit } from '@/lib/rate-limit'
+import {
+  globalRateLimiter,
+  contactRateLimiter,
+  authRateLimiter,
+  uploadRateLimiter
+} from '@/lib/upstash-ratelimit'
 
 // Routes publiques qui ne nécessitent pas d'authentification
 const publicPaths = [
@@ -99,40 +104,37 @@ function addAdminSecurityHeaders(response: NextResponse) {
   return response
 }
 
-// Rate limiting middleware
+// Rate limiting middleware using Upstash Redis
 async function checkRateLimit(request: NextRequest, pathname: string): Promise<NextResponse | null> {
-  // Skip rate limiting pour les routes publiques
+  // Skip rate limiting pour les routes publiques de test
   if (publicRoutes.some(route => pathname.startsWith(route))) {
     return null
-  }
-
-  // Rate limiting spécifique pour les routes sensibles
-  const sensitiveRoute = Object.keys(sensitiveRoutes).find(route => pathname.startsWith(route))
-  
-  let limit = 100 // Default limit
-  let windowMs = 60 * 60 * 1000 // 1 hour
-
-  if (sensitiveRoute) {
-    limit = sensitiveRoutes[sensitiveRoute].limit
-    windowMs = sensitiveRoutes[sensitiveRoute].windowMs
   }
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 
              request.headers.get('x-real-ip') || 
              'unknown'
 
-  const allowed = await rateLimit({
-    id: `${pathname}:${ip}`,
-    limit,
-    windowMs,
-  })
+  let result;
 
-  if (!allowed) {
+  if (pathname.startsWith('/api/contact')) {
+    result = await contactRateLimiter.limit(ip);
+  } else if (pathname.startsWith('/api/auth')) {
+    result = await authRateLimiter.limit(ip);
+  } else if (pathname.startsWith('/api/upload')) {
+    result = await uploadRateLimiter.limit(ip);
+  } else {
+    result = await globalRateLimiter.limit(ip);
+  }
+
+  if (!result.success) {
     const response = NextResponse.json(
       { error: 'Trop de requêtes. Veuillez réessayer plus tard.' },
       { status: 429 }
     )
-    response.headers.set('Retry-After', String(Math.floor(windowMs / 1000)))
+    response.headers.set('X-RateLimit-Limit', result.limit.toString())
+    response.headers.set('X-RateLimit-Remaining', result.remaining.toString())
+    response.headers.set('X-RateLimit-Reset', result.reset.toString())
     return addSecurityHeaders(response)
   }
 

@@ -10,7 +10,7 @@ const ExecutiveMemberSchema = z.object({
   position: z.string().min(2).max(100),
   email: z.string().email().max(255).optional(),
   phone: z.string().max(20).optional(),
-  photo: z.string().url().optional(),
+  photoUrl: z.string().url().optional(),
   order: z.number().int().min(0).default(0),
 })
 
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     const published = searchParams.get('published') !== 'false'
 
     const members = await prisma.executiveMember.findMany({
-      where: published ? {} : {}, // Tous les membres pour l'admin
+      where: published ? { isActive: true } : {}, // Tous les membres pour l'admin
       orderBy: { order: 'asc' },
     })
 

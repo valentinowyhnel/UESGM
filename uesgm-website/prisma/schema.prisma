@@ -96,7 +96,7 @@ model ExecutiveMember {
   position  String
   email     String?  @unique
   phone     String?
-  photo     String?
+  photoUrl  String?
   order     Int      @default(0)
   bio       String?
   facebook  String?
@@ -396,7 +396,7 @@ model AntenneDocument {
 model Partner {
   id          String      @id @default(cuid())
   name        String      @unique
-  logo        String?
+  logoUrl     String?
   website     String?
   type        PartnerType
   description String?
@@ -538,9 +538,11 @@ model MonthlyStats {
 // ============================================
 
 enum Role {
-  MEMBER
-  ADMIN
   SUPER_ADMIN
+  ADMIN
+  MODERATOR
+  MEMBER
+  PUBLIC
 }
 
 enum EventStatus {

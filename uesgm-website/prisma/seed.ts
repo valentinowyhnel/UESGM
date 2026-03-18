@@ -49,6 +49,22 @@ async function main() {
   })
   console.log(`✅ President créé: ${presidentUser.email}`)
 
+  // Compte Moderator
+  const moderatorPassword = await bcrypt.hash('UESGM_Mod_2025!', 12)
+
+  const moderatorUser = await prisma.user.upsert({
+    where: { email: 'moderator@uesgm.ma' },
+    update: {},
+    create: {
+      email: 'moderator@uesgm.ma',
+      name: 'Modérateur UESGM',
+      password: moderatorPassword,
+      role: 'MODERATOR',
+      emailVerified: new Date()
+    }
+  })
+  console.log(`✅ Moderator créé: ${moderatorUser.email}`)
+
   // ============================================
   // CRÉATION DES MEMBRES DU BUREAU EXÉCUTIF
   // ============================================
@@ -70,7 +86,8 @@ async function main() {
         position: member.position,
         email: member.name.toLowerCase().replace(/ /g, '.') + '@uesgm.ma',
         order: member.order,
-        bio: member.bio
+        bio: member.bio,
+        photoUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.name.replace(/ /g, '')}`
       }
     })
   }
@@ -103,11 +120,11 @@ async function main() {
   // ============================================
   
   const partners = [
-    { name: 'Ambassade du Gabon au Maroc', type: 'INSTITUTIONAL' as const, order: 1 },
-    { name: 'Université Mohammed V', type: 'INSTITUTIONAL' as const, order: 2 },
-    { name: 'Université Hassan II', type: 'INSTITUTIONAL' as const, order: 3 },
-    { name: 'OCSID', type: 'ASSOCIATION' as const, order: 4 },
-    { name: 'BGF', type: 'PRIVATE' as const, order: 5 },
+    { name: 'Ambassade du Gabon au Maroc', type: 'INSTITUTIONAL' as const, order: 1, logoUrl: 'https://placehold.co/200x100?text=Ambassade' },
+    { name: 'Université Mohammed V', type: 'INSTITUTIONAL' as const, order: 2, logoUrl: 'https://placehold.co/200x100?text=UM5' },
+    { name: 'Université Hassan II', type: 'INSTITUTIONAL' as const, order: 3, logoUrl: 'https://placehold.co/200x100?text=UH2' },
+    { name: 'OCSID', type: 'ASSOCIATION' as const, order: 4, logoUrl: 'https://placehold.co/200x100?text=OCSID' },
+    { name: 'BGF', type: 'PRIVATE' as const, order: 5, logoUrl: 'https://placehold.co/200x100?text=BGF' },
   ]
 
   for (const partner of partners) {
@@ -130,9 +147,9 @@ async function main() {
       id: 'global-stats',
       totalMembers: 150,
       totalAntennes: antennes.length,
-      totalEvents: 0,
-      totalProjects: 0,
-      totalDocuments: 0
+      totalEvents: 1,
+      totalProjects: 1,
+      totalDocuments: 1
     }
   })
   console.log(`✅ Statistiques initiales créées`)
@@ -154,7 +171,9 @@ async function main() {
       category: 'INTEGRATION',
       publishedAt: new Date(),
       maxAttendees: 100,
-      createdById: adminUser.id
+      createdById: adminUser.id,
+      published: true,
+      imageUrl: 'https://placehold.co/800x400?text=Integration+2024'
     }
   })
   console.log(`✅ Événement exemple créé: ${event.title}`)
@@ -171,12 +190,14 @@ async function main() {
       slug: 'programme-soutien-scolaire',
       description: 'Programme de mentorat et de soutien scolaire pour les étudiants gabonais au Maroc. Nous aidons les nouveaux étudiants à s\'adapter au système éducatif marocain.',
       shortDesc: 'Mentorat et soutien pour les étudiants',
+      summary: 'Accompagnement académique pour la réussite des étudiants gabonais.',
       category: 'EDUCATION',
       status: 'IN_PROGRESS',
       progress: 35,
       isPublished: true,
       startDate: new Date('2024-09-01'),
-      createdById: adminUser.id
+      createdById: adminUser.id,
+      imageUrl: 'https://placehold.co/800x400?text=Soutien+Scolaire'
     }
   })
   console.log(`✅ Projet exemple créé: ${project.title}`)
@@ -199,16 +220,19 @@ async function main() {
       fileSize: 2500000,
       mimeType: 'application/pdf',
       isPublished: true,
+      published: true,
       downloads: 0,
-      createdById: adminUser.id
+      createdById: adminUser.id,
+      tags_list: ['accueil', 'maroc', 'guide']
     }
   })
   console.log(`✅ Document exemple créé: Guide d'Accueil 2024`)
 
   console.log('\n🎉 Seed terminé avec succès!')
-  console.log('\n📋 Comptes administrateur:')
+  console.log('\n📋 Comptes utilisateurs:')
   console.log('   - Admin: admin@uesgm.ma / 7d99755735371a9f891309e336bf8f71 (SUPER_ADMIN)')
   console.log('   - President: president@uesgm.ma / UESGM_President_2025_Secret! (ADMIN)')
+  console.log('   - Moderator: moderator@uesgm.ma / UESGM_Mod_2025! (MODERATOR)')
 }
 
 main()

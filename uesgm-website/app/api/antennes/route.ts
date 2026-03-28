@@ -104,7 +104,7 @@ export async function POST(req: Request) {
     console.error('❌ Erreur POST /api/antennes:', error)
     if (error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
+        { error: 'Données invalides', details: error.issues },
         { status: 400 }
       )
     }
@@ -157,7 +157,7 @@ export async function PUT(req: Request) {
     console.error('❌ Erreur PUT /api/antennes:', error)
     if (error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
+        { error: 'Données invalides', details: error.issues },
         { status: 400 }
       )
     }

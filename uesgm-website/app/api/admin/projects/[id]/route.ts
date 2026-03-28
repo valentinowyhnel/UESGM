@@ -58,7 +58,7 @@ export const PUT = withAdminAuth(async (req: NextRequest, { params }: { params: 
     const validation = validateAdminData(body, 'project')
     if (!validation.isValid) {
       return NextResponse.json(
-        { error: 'Données invalides', details: validation.errors },
+        { error: 'Données invalides', details: validation.issues },
         { status: 400 }
       )
     }

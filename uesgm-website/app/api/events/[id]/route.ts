@@ -136,7 +136,7 @@ export async function PUT(
     console.error('❌ Erreur PUT /api/events/[id]:', error)
     if (error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
+        { error: 'Données invalides', details: error.issues },
         { status: 400 }
       )
     }
@@ -239,7 +239,7 @@ export async function PATCH(
     console.error('❌ Erreur PATCH /api/events/[id]:', error)
     if (error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
+        { error: 'Données invalides', details: error.issues },
         { status: 400 }
       )
     }

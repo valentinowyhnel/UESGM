@@ -46,7 +46,7 @@ const bureauStructure = {
             image: "/images/Trésorier Général.jpg"
         },
         adjoint: {
-            name: "LEBOUNDANGOYE MPIGA Cart Marley",
+            name: "LEBOUNDANGOYE MPIGA Carl Marley",
             role: "Trésorier Général Adjoint",
             location: "Casablanca",
             email: "Leboundangoyecarlmarley@gmail.com",

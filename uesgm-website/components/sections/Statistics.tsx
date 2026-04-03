@@ -103,7 +103,7 @@ export function Statistics() {
           className="text-center mt-20 pt-10 border-t border-slate-200"
         >
           <p className="text-xl text-slate-600 max-w-4xl mx-auto leading-relaxed">
-            Rejoignez notre communauté grandissante d'étudiants et de professionnels gabonais au Maroc. 
+            Rejoignez notre communauté grandissante d'étudiants et de stagiaires au Maroc. 
             <span className="text-amber-600 font-semibold"> Ensemble, nous sommes plus forts.</span>
           </p>
         </motion.div>

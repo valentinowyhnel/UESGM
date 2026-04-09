@@ -110,7 +110,7 @@ export async function POST(req: Request) {
     console.error('❌ Erreur POST /api/newsletter:', error)
     if (error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Email invalide', details: error.errors },
+        { error: 'Email invalide', details: error.issues },
         { status: 400 }
       )
     }

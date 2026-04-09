@@ -103,11 +103,11 @@ async function main() {
   // ============================================
   
   const partners = [
-    { name: 'Ambassade du Gabon au Maroc', type: 'INSTITUTIONAL' as const, order: 1 },
-    { name: 'Université Mohammed V', type: 'INSTITUTIONAL' as const, order: 2 },
-    { name: 'Université Hassan II', type: 'INSTITUTIONAL' as const, order: 3 },
-    { name: 'OCSID', type: 'ASSOCIATION' as const, order: 4 },
-    { name: 'BGF', type: 'PRIVATE' as const, order: 5 },
+    { name: 'Ambassade du Gabon au Maroc', type: 'INSTITUTIONAL', order: 1 },
+    { name: 'Université Mohammed V', type: 'INSTITUTIONAL', order: 2 },
+    { name: 'Université Hassan II', type: 'INSTITUTIONAL', order: 3 },
+    { name: 'OCSID', type: 'ASSOCIATION', order: 4 },
+    { name: 'BGF', type: 'PRIVATE', order: 5 },
   ]
 
   for (const partner of partners) {
@@ -123,18 +123,21 @@ async function main() {
   // CRÉATION DES STATISTIQUES
   // ============================================
   
-  await prisma.statistics.upsert({
-    where: { id: 'global-stats' },
-    update: {},
-    create: {
-      id: 'global-stats',
-      totalMembers: 150,
-      totalAntennes: antennes.length,
-      totalEvents: 0,
-      totalProjects: 0,
-      totalDocuments: 0
-    }
-  })
+  const stats = [
+    { key: 'total_members', value: '150' },
+    { key: 'total_antennes', value: antennes.length.toString() },
+    { key: 'total_events', value: '1' },
+    { key: 'total_projects', value: '1' },
+    { key: 'total_documents', value: '1' },
+  ]
+
+  for (const stat of stats) {
+    await prisma.statistics.upsert({
+      where: { key: stat.key },
+      update: {},
+      create: stat
+    })
+  }
   console.log(`✅ Statistiques initiales créées`)
 
   // ============================================
@@ -148,10 +151,12 @@ async function main() {
       title: 'Journée d\'Intégration 2024',
       description: 'Journée d\'intégration des nouveaux étudiants gabonais au Maroc. Au programme: activités culturelles, rencontres et networking.',
       location: 'Rabat, Maroc',
+      date: new Date('2024-10-15T14:00:00Z'),
       startDate: new Date('2024-10-15T14:00:00Z'),
       slug: 'journee-integration-2024',
       status: 'PUBLISHED',
       category: 'INTEGRATION',
+      published: true,
       publishedAt: new Date(),
       maxAttendees: 100,
       createdById: adminUser.id
@@ -170,10 +175,11 @@ async function main() {
       title: 'Programme de Soutien Scolaire',
       slug: 'programme-soutien-scolaire',
       description: 'Programme de mentorat et de soutien scolaire pour les étudiants gabonais au Maroc. Nous aidons les nouveaux étudiants à s\'adapter au système éducatif marocain.',
-      shortDesc: 'Mentorat et soutien pour les étudiants',
+      summary: 'Mentorat et soutien pour les étudiants',
       category: 'EDUCATION',
       status: 'IN_PROGRESS',
       progress: 35,
+      published: true,
       isPublished: true,
       startDate: new Date('2024-09-01'),
       createdById: adminUser.id
@@ -196,8 +202,10 @@ async function main() {
       visibility: 'PUBLIC',
       fileUrl: 'https://example.com/guide.pdf',
       fileName: 'guide-accueil-2024.pdf',
+      fileType: 'application/pdf',
       fileSize: 2500000,
       mimeType: 'application/pdf',
+      published: true,
       isPublished: true,
       downloads: 0,
       createdById: adminUser.id

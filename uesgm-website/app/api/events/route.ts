@@ -3,154 +3,76 @@ import { z } from "zod"
 import { getServerSession } from "next-auth/next"
 import { prisma } from "@/lib/prisma"
 import { authOptions } from "@/lib/auth"
-import type { DefaultSession } from "next-auth"
 
-// Définition locale des rôles utilisateur
-const UserRole = {
-  ADMIN: 'ADMIN',
+// Roles consistent with prisma schema
+const Role = {
   SUPER_ADMIN: 'SUPER_ADMIN',
-  MEMBER: 'MEMBER'
+  ADMIN: 'ADMIN',
+  MODERATOR: 'MODERATOR',
+  MEMBER: 'MEMBER',
+  PUBLIC: 'PUBLIC'
 } as const
 
-// Définition des enums pour les statuts et catégories d'événements
-const EventStatus = {
-  DRAFT: 'DRAFT',
-  PUBLISHED: 'PUBLISHED',
-  ARCHIVED: 'ARCHIVED',
-  SCHEDULED: 'SCHEDULED'
-} as const
-
-type EventStatus = typeof EventStatus[keyof typeof EventStatus]
-
-const EventCategory = {
-  INTEGRATION: 'INTEGRATION',
-  ACADEMIC: 'ACADEMIC',
-  SOCIAL: 'SOCIAL',
-  CULTURAL: 'CULTURAL'
-} as const
-
-type EventCategory = typeof EventCategory[keyof typeof EventCategory]
+// Helper to check roles
+function hasRole(session: any, allowedRoles: string[]) {
+  return session?.user?.role && allowedRoles.includes(session.user.role)
+}
 
 // Schema for creating/updating events
-const CreateEventSchema = z.object({
+const EventSchema = z.object({
   title: z.string().min(3).max(100),
-  description: z.string().min(5),
-  location: z.string().min(3),
-  startDate: z.string().or(z.date()),
-  endDate: z.string().or(z.date()).optional(),
-  category: z.nativeEnum(EventCategory).optional(),
-  status: z.nativeEnum(EventStatus).default(EventStatus.DRAFT),
-  maxAttendees: z.number().int().positive().optional(),
+  description: z.string().optional(),
+  location: z.string().optional(),
+  date: z.string().or(z.date()),
+  category: z.string().optional(),
   imageUrl: z.string().url().optional(),
-  antenneId: z.string().optional(),
+  isPast: z.boolean().default(false),
+  published: z.boolean().default(false),
 })
 
-// Interface pour les événements publics
-type PublicEvent = {
-  id: string
-  title: string
-  slug: string
-  description: string
-  location: string
-  imageUrl: string | null
-  category: EventCategory
-  status: EventStatus
-  startDate: Date
-  endDate: Date | null
-  maxAttendees: number | null
-  createdAt: Date
-  updatedAt: Date
-  publishedAt: Date | null
-  createdBy: {
-    id: string
-    name: string | null
-    email: string
-  }
-  _count?: {
-    attendees: number
-  }
-}
-
-// Schéma de validation pour les requêtes publiques
-const PublicEventQuerySchema = z.object({
-  page: z.coerce.number().min(1).default(1),
-  per: z.coerce.number().min(1).max(50).default(10),
-  category: z.nativeEnum(EventCategory).optional(),
-  search: z.string().optional().nullable(),
-  status: z.enum(['upcoming', 'past', 'all']).default('upcoming')
-})
-
-// Type pour l'utilisateur authentifié
-type AuthenticatedUser = {
-  id: string
-  email: string
-  name: string
-  role: keyof typeof UserRole
-}
-
-// Les types d'authentification sont définis dans types/next-auth.d.ts
-
-// GET - Récupérer les événements
+// GET - List events with pagination and filters
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const query = PublicEventQuerySchema.parse({
-      page: Number(searchParams.get('page')) || 1,
-      per: Number(searchParams.get('per')) || 10,
-      category: searchParams.get('category') || undefined,
-      search: searchParams.get('search') || undefined,
-      status: searchParams.get('status') || 'upcoming',
-    })
+    const page = Math.max(1, Number(searchParams.get('page')) || 1)
+    const per = Math.min(50, Math.max(1, Number(searchParams.get('per')) || 10))
+    const category = searchParams.get('category')
+    const status = searchParams.get('status') // upcoming, past, all
+    const search = searchParams.get('search')
+    const publishedOnly = searchParams.get('published') !== 'false'
 
-    const where: any = {
-      OR: [
-        { status: EventStatus.PUBLISHED },
-        // Afficher aussi les événements programmés dont la date de publication est passée
-        {
-          status: EventStatus.SCHEDULED,
-          publishedAt: { lte: new Date() }
-        }
-      ]
+    const where: any = {}
+    
+    if (publishedOnly) {
+      where.published = true
     }
     
-    // Filtre par statut
-    if (query.status !== 'all') {
-      const now = new Date()
-      if (query.status === 'upcoming') {
-        where.startDate = { gte: now }
-      } else if (query.status === 'past') {
-        where.startDate = { lt: now }
-      }
+    if (category) {
+      where.category = category
     }
-    
-    // Filtres additionnels
-    if (query.category) where.category = query.category
-    
-    // Recherche textuelle
-    if (query.search) {
+
+    if (status === 'upcoming') {
+      where.date = { gte: new Date() }
+    } else if (status === 'past') {
+      where.date = { lt: new Date() }
+    }
+
+    if (search) {
       where.OR = [
-        { title: { contains: query.search, mode: 'insensitive' } },
-        { description: { contains: query.search, mode: 'insensitive' } },
-        { location: { contains: query.search, mode: 'insensitive' } },
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
       ]
     }
 
     const [events, total] = await Promise.all([
       prisma.event.findMany({
         where,
-        orderBy: { startDate: query.status === 'past' ? 'desc' : 'asc' },
-        skip: (query.page - 1) * query.per,
-        take: query.per,
+        orderBy: { date: 'asc' },
+        skip: (page - 1) * per,
+        take: per,
         include: {
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          },
           _count: {
-            select: { registrations: true }
+            select: { attendees: true }
           }
         }
       }),
@@ -161,206 +83,102 @@ export async function GET(req: NextRequest) {
       success: true,
       data: events,
       pagination: {
-        page: query.page,
-        per: query.per,
+        page,
+        per,
         total,
-        pages: Math.ceil(total / query.per),
-        hasNext: query.page * query.per < total,
+        pages: Math.ceil(total / per),
+        hasNext: page * per < total,
       },
     })
   } catch (error) {
     console.error('❌ Erreur GET /api/events:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
-// POST - Création d'événement (admin uniquement)
+// POST - Create event (Admin+)
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
-    const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
+    const session = await getServerSession(authOptions)
+    if (!hasRole(session, [Role.SUPER_ADMIN, Role.ADMIN, Role.MODERATOR])) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
     const body = await req.json()
-    const eventData = CreateEventSchema.parse(body)
+    const validated = EventSchema.parse(body)
 
-    // Générer un slug unique
-    const slug = eventData.title
+    const slug = validated.title
       .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '-')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
 
     const event = await prisma.event.create({
       data: {
-        title: eventData.title,
-        description: eventData.description,
-        location: eventData.location,
-        startDate: new Date(eventData.startDate),
-        endDate: eventData.endDate ? new Date(eventData.endDate) : null,
-        category: eventData.category || EventCategory.INTEGRATION,
-        status: eventData.status,
-        maxAttendees: eventData.maxAttendees,
-        imageUrl: eventData.imageUrl || null,
+        ...validated,
+        date: new Date(validated.date),
         slug,
-        createdById: session.user.id,
-        publishedAt: eventData.status === EventStatus.PUBLISHED ? new Date() : null,
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        _count: {
-          select: { registrations: true }
-        }
+        createdById: (session as any).user.id,
       }
     })
 
-    return NextResponse.json(
-      { success: true, data: event },
-      { status: 201 }
-    )
+    return NextResponse.json({ success: true, data: event }, { status: 201 })
   } catch (error: any) {
     console.error('❌ Erreur POST /api/events:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Données invalides', details: error.issues }, { status: 400 })
     }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
-// PUT - Mise à jour d'un événement (admin uniquement)
+// PUT - Update event (Admin+)
 export async function PUT(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
-    const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
+    const session = await getServerSession(authOptions)
+    if (!hasRole(session, [Role.SUPER_ADMIN, Role.ADMIN, Role.MODERATOR])) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
     const body = await req.json()
-    const { id, ...updateFields } = body
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID de l\'événement requis' },
-        { status: 400 }
-      )
-    }
+    const { id, ...data } = body
+    if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
 
-    const updateSchema = CreateEventSchema.partial()
-    const validatedData = updateSchema.parse(updateFields)
-
-    // Préparer les données de mise à jour
-    const updateData: any = { ...validatedData }
+    const validated = EventSchema.partial().parse(data)
     
-    // Convertir les dates si elles sont présentes
-    if (updateData.startDate) updateData.startDate = new Date(updateData.startDate)
-    if (updateData.endDate) updateData.endDate = new Date(updateData.endDate)
-    
-    // Si l'événement est publié, définir publishedAt
-    if (updateData.status === 'PUBLISHED' && !updateData.publishedAt) {
-      updateData.publishedAt = new Date()
-    }
+    const updateData: any = { ...validated }
+    if (validated.date) updateData.date = new Date(validated.date)
 
     const event = await prisma.event.update({
       where: { id },
-      data: updateData,
-      include: {
-        _count: {
-          select: { registrations: true }
-        }
-      }
+      data: updateData
     })
 
-    return NextResponse.json(
-      { success: true, data: event },
-      { status: 200 }
-    )
+    return NextResponse.json({ success: true, data: event })
   } catch (error: any) {
     console.error('❌ Erreur PUT /api/events:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Données invalides', details: error.issues }, { status: 400 })
     }
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Événement non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
-// DELETE - Suppression d'un événement (admin uniquement)
+// DELETE - Delete event (Admin+)
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
-    const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
+    const session = await getServerSession(authOptions)
+    if (!hasRole(session, [Role.SUPER_ADMIN, Role.ADMIN])) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID de l\'événement requis' },
-        { status: 400 }
-      )
-    }
+    if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
 
-    await prisma.event.delete({
-      where: { id }
-    })
-
-    return NextResponse.json(
-      { success: true, message: 'Événement supprimé avec succès' },
-      { status: 200 }
-    )
-  } catch (error: any) {
+    await prisma.event.delete({ where: { id } })
+    return NextResponse.json({ success: true, message: 'Événement supprimé' })
+  } catch (error) {
     console.error('❌ Erreur DELETE /api/events:', error)
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Événement non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

@@ -317,7 +317,7 @@ export async function POST(req: Request) {
     
     if (error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
+        { error: 'Données invalides', details: error.issues },
         { status: 400 }
       )
     }
@@ -397,7 +397,7 @@ export async function PUT(req: Request) {
     
     if (error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
+        { error: 'Données invalides', details: error.issues },
         { status: 400 }
       )
     }

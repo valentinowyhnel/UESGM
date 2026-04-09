@@ -14,17 +14,17 @@ function hasRole(session: any, allowedRoles: string[]) {
   return session?.user?.role && allowedRoles.includes(session.user.role)
 }
 
-const ProjectSchema = z.object({
+const DocumentSchema = z.object({
   title: z.string().min(5).max(200),
   description: z.string().optional(),
-  summary: z.string().optional(),
   category: z.string().optional(),
-  status: z.string().default('PLANNED'),
-  progress: z.number().int().min(0).max(100).default(0),
-  imageUrl: z.string().url().optional(),
-  startDate: z.string().or(z.date()).optional(),
-  endDate: z.string().or(z.date()).optional(),
+  tags: z.array(z.string()).default([]),
+  fileUrl: z.string().url(),
+  fileType: z.string(),
+  fileSize: z.number().int().positive().optional(),
   published: z.boolean().default(false),
+  submittedByEmail: z.string().email().optional(),
+  submittedByName: z.string().optional(),
 })
 
 export async function GET(req: NextRequest) {
@@ -32,36 +32,33 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const page = Math.max(1, Number(searchParams.get('page')) || 1)
     const per = Math.min(50, Math.max(1, Number(searchParams.get('per')) || 10))
-    const status = searchParams.get('status')
     const category = searchParams.get('category')
     const search = searchParams.get('search')
     const publishedOnly = searchParams.get('published') !== 'false'
 
     const where: any = {}
     if (publishedOnly) where.published = true
-    if (status && status !== 'all') where.status = status
     if (category) where.category = category
     if (search) {
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
-        { summary: { contains: search, mode: 'insensitive' } },
       ]
     }
 
-    const [projects, total] = await Promise.all([
-      prisma.project.findMany({
+    const [documents, total] = await Promise.all([
+      prisma.document.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * per,
         take: per,
       }),
-      prisma.project.count({ where }),
+      prisma.document.count({ where }),
     ])
 
     return NextResponse.json({
       success: true,
-      data: projects,
+      data: documents,
       pagination: {
         page,
         per,
@@ -71,7 +68,7 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('❌ Erreur GET /api/projects:', error)
+    console.error('❌ Erreur GET /api/documents:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -84,24 +81,22 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const validated = ProjectSchema.parse(body)
+    const validated = DocumentSchema.parse(body)
 
     const slug = validated.title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
 
-    const project = await prisma.project.create({
+    const document = await prisma.document.create({
       data: {
         ...validated,
         slug,
         createdById: (session as any).user.id,
-        startDate: validated.startDate ? new Date(validated.startDate) : undefined,
-        endDate: validated.endDate ? new Date(validated.endDate) : undefined,
       }
     })
 
-    return NextResponse.json({ success: true, data: project }, { status: 201 })
+    return NextResponse.json({ success: true, data: document }, { status: 201 })
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Données invalides', details: error.issues }, { status: 400 })
@@ -121,18 +116,13 @@ export async function PUT(req: NextRequest) {
     const { id, ...data } = body
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
 
-    const validated = ProjectSchema.partial().parse(data)
-    
-    const updateData: any = { ...validated }
-    if (validated.startDate) updateData.startDate = new Date(validated.startDate)
-    if (validated.endDate) updateData.endDate = new Date(validated.endDate)
-
-    const project = await prisma.project.update({
+    const validated = DocumentSchema.partial().parse(data)
+    const document = await prisma.document.update({
       where: { id },
-      data: updateData
+      data: validated
     })
 
-    return NextResponse.json({ success: true, data: project })
+    return NextResponse.json({ success: true, data: document })
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Données invalides', details: error.issues }, { status: 400 })
@@ -152,8 +142,8 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 })
 
-    await prisma.project.delete({ where: { id } })
-    return NextResponse.json({ success: true, message: 'Projet supprimé' })
+    await prisma.document.delete({ where: { id } })
+    return NextResponse.json({ success: true, message: 'Document supprimé' })
   } catch (error) {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }

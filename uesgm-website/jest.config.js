@@ -1,29 +1,12 @@
-/**
- * Configuration Jest pour les tests UESGM
- */
-
 module.exports = {
   testEnvironment: 'node',
   testMatch: [
-    '**/tests/**/*.test.js',
-    '**/tests/**/*.spec.js'
+    '**/tests/**/*.test.ts'
   ],
-  collectCoverageFrom: [
-    'app/api/**/*.js',
-    'lib/**/*.js',
-    '!app/api/**/route.js',
-    '!**/node_modules/**',
-    '!**/tests/**'
-  ],
-  coverageReporters: [
-    'text',
-    'lcov',
-    'html'
-  ],
-  coverageDirectory: 'coverage',
-  setupFilesAfterEnv: [
-    '<rootDir>/tests/setup.js'
-  ],
+  preset: 'ts-jest',
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/$1',
+  },
   testTimeout: 30000,
   verbose: true,
   forceExit: true,

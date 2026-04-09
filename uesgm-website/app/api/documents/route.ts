@@ -4,27 +4,27 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/auth-options"
 import { z } from "zod"
 
-const ProjectCategory = z.enum([
-  'EDUCATION', 'SOCIAL', 'HEALTH', 'DIGITAL', 'PARTNERSHIP',
-  'ENVIRONMENT', 'CULTURE', 'INFRASTRUCTURE', 'SPORT'
+const DocumentCategory = z.enum([
+  'ADMINISTRATIF', 'ACADEMIQUE', 'JURIDIQUE', 'RAPPORT',
+  'GUIDE', 'LIVRE', 'ARTICLE', 'STATUTS'
 ])
 
-const ProjectStatus = z.enum([
-  'PLANNED', 'IN_PROGRESS', 'COMPLETED', 'SUSPENDED', 'CANCELLED'
-])
+const DocumentVisibility = z.enum(['PUBLIC', 'MEMBERS_ONLY', 'ADMIN_ONLY'])
 
-const ProjectSchema = z.object({
+const DocumentSchema = z.object({
   title: z.string().min(5).max(200),
-  description: z.string().min(5).max(5000),
-  shortDesc: z.string().max(500).optional(),
-  summary: z.string().max(500).optional(),
-  status: ProjectStatus.default('PLANNED'),
-  category: ProjectCategory,
-  progress: z.number().int().min(0).max(100).default(0),
-  imageUrl: z.string().url().optional().or(z.literal('')),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-  isPublished: z.boolean().default(false),
+  description: z.string().max(1000).optional(),
+  category: DocumentCategory,
+  visibility: DocumentVisibility.default('PUBLIC'),
+  fileUrl: z.string().url(),
+  fileName: z.string(),
+  fileType: z.string().optional(),
+  fileSize: z.number().int().positive(),
+  mimeType: z.string(),
+  tags: z.array(z.string()).default([]),
+  published: z.boolean().default(false),
+  submittedByEmail: z.string().email().optional().or(z.literal('')),
+  submittedByName: z.string().optional().or(z.literal('')),
 })
 
 export async function GET(req: NextRequest) {
@@ -32,12 +32,21 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
     const per = Math.min(50, Math.max(1, parseInt(searchParams.get('per') || '10')))
-    const status = searchParams.get('status')
     const category = searchParams.get('category')
     const search = searchParams.get('search')
 
-    const where: any = { isPublished: true }
-    if (status && status !== 'all') where.status = status
+    const session = await getServerSession(authOptions)
+    const userRole = session?.user?.role || 'PUBLIC'
+
+    const where: any = {
+      isPublished: true,
+      OR: [
+        { visibility: 'PUBLIC' },
+        ...(userRole !== 'PUBLIC' ? [{ visibility: 'MEMBERS_ONLY' }] : []),
+        ...(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' ? [{ visibility: 'ADMIN_ONLY' }] : [])
+      ]
+    }
+
     if (category) where.category = category
     if (search) {
       where.OR = [
@@ -46,18 +55,24 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    const [projects, total] = await Promise.all([
-      prisma.project.findMany({
+    const [documents, total] = await Promise.all([
+      prisma.document.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * per,
         take: per,
+        include: {
+          versions: {
+            orderBy: { version: 'desc' },
+            take: 1
+          }
+        }
       }),
-      prisma.project.count({ where }),
+      prisma.document.count({ where }),
     ])
 
     return NextResponse.json({
-      data: projects,
+      data: documents,
       pagination: {
         page,
         per,
@@ -66,7 +81,7 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('❌ GET /api/projects error:', error)
+    console.error('❌ GET /api/documents error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -79,28 +94,37 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const validated = ProjectSchema.parse(body)
+    const validated = DocumentSchema.parse(body)
 
     const slug = validated.title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
 
-    const project = await prisma.project.create({
+    const document = await prisma.document.create({
       data: {
         ...validated,
         slug,
         createdById: session.user.id,
-        shortDesc: validated.shortDesc || validated.description.substring(0, 150)
+        published: validated.published, // Alias field
+        isPublished: validated.published,
+        tags_list: validated.tags, // Alias field
+        versions: {
+          create: {
+            fileUrl: validated.fileUrl,
+            version: 1,
+            changelog: 'Version initiale'
+          }
+        }
       }
     })
 
-    return NextResponse.json(project, { status: 201 })
+    return NextResponse.json(document, { status: 201 })
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Données invalides", details: error.format() }, { status: 400 })
     }
-    console.error('❌ POST /api/projects error:', error)
+    console.error('❌ POST /api/documents error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

@@ -1,29 +1,29 @@
-import { NextResponse } from "next/server"
+import { NextResponse, NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { authOptions } from "@/lib/auth/auth-options"
 import { z } from "zod"
 
-// Schéma de validation amélioré
 const PartnerSchema = z.object({
   name: z.string().min(2).max(100),
-  logo: z.string().url().optional(),
-  website: z.string().url().optional(),
-  type: z.enum(['INSTITUTIONAL', 'PRIVATE']),
+  logoUrl: z.string().url().optional().or(z.literal('')),
+  website: z.string().url().optional().or(z.literal('')),
+  type: z.enum(['INSTITUTIONAL', 'PRIVATE', 'ASSOCIATION']),
+  contact: z.string().optional(),
   description: z.string().max(1000).optional(),
   order: z.number().int().min(0).default(0),
+  isActive: z.boolean().default(true)
 })
 
-// GET - Liste des partenaires
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const type = searchParams.get('type') as 'INSTITUTIONAL' | 'PRIVATE' | null
+    const type = searchParams.get('type')
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
     const per = Math.min(50, Math.max(1, parseInt(searchParams.get('per') || '10')))
 
-    const where: any = {}
-    if (type && ['INSTITUTIONAL', 'PRIVATE'].includes(type)) {
+    const where: any = { isActive: true }
+    if (type) {
       where.type = type
     }
 
@@ -38,159 +38,43 @@ export async function GET(req: Request) {
     ])
 
     return NextResponse.json({
-      success: true,
       data: partners,
       pagination: {
         page,
         per,
         total,
-        pages: Math.ceil(total / per),
-        hasNext: page * per < total,
+        pages: Math.ceil(total / per)
       },
     })
   } catch (error) {
-    console.error('❌ Erreur GET /api/partners:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    console.error('❌ GET /api/partners error:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
-// POST - Ajouter un partenaire (admin uniquement)
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
+    if (!session || !['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
     const body = await req.json()
-    const partnerData = PartnerSchema.parse(body)
+    const validated = PartnerSchema.parse(body)
 
     const partner = await prisma.partner.create({
-      data: partnerData,
+      data: {
+        ...validated,
+        logo: validated.logoUrl // Alias field
+      },
     })
 
-    return NextResponse.json(
-      { success: true, data: partner },
-      { status: 201 }
-    )
+    return NextResponse.json(partner, { status: 201 })
   } catch (error: any) {
-    console.error('❌ Erreur POST /api/partners:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Données invalides", details: error.format() }, { status: 400 })
     }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
-  }
-}
-
-// PUT - Mise à jour d'un partenaire (admin uniquement)
-export async function PUT(req: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
-
-    const body = await req.json()
-    const { id, ...updateData } = body
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID du partenaire requis' },
-        { status: 400 }
-      )
-    }
-
-    const updateSchema = PartnerSchema.partial()
-    const validatedData = updateSchema.parse(updateData)
-
-    const partner = await prisma.partner.update({
-      where: { id },
-      data: validatedData,
-    })
-
-    return NextResponse.json(
-      { success: true, data: partner },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur PUT /api/partners:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
-    }
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Partenaire non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
-  }
-}
-
-// DELETE - Suppression d'un partenaire (admin uniquement)
-export async function DELETE(req: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
-
-    const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID du partenaire requis' },
-        { status: 400 }
-      )
-    }
-
-    await prisma.partner.delete({
-      where: { id }
-    })
-
-    return NextResponse.json(
-      { success: true, message: 'Partenaire supprimé avec succès' },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur DELETE /api/partners:', error)
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Partenaire non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    console.error('❌ POST /api/partners error:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

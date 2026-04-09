@@ -70,7 +70,8 @@ async function main() {
         position: member.position,
         email: member.name.toLowerCase().replace(/ /g, '.') + '@uesgm.ma',
         order: member.order,
-        bio: member.bio
+        bio: member.bio,
+        photoUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.name}`
       }
     })
   }
@@ -114,7 +115,10 @@ async function main() {
     await prisma.partner.upsert({
       where: { name: partner.name },
       update: {},
-      create: partner
+      create: {
+        ...partner,
+        logoUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${partner.name}`
+      }
     })
   }
   console.log(`✅ ${partners.length} partenaires créés`)

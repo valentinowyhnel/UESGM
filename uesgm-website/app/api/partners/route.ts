@@ -7,9 +7,9 @@ import { z } from "zod"
 // Schéma de validation amélioré
 const PartnerSchema = z.object({
   name: z.string().min(2).max(100),
-  logo: z.string().url().optional(),
+  logoUrl: z.string().url().optional(),
   website: z.string().url().optional(),
-  type: z.enum(['INSTITUTIONAL', 'PRIVATE']),
+  type: z.enum(['INSTITUTIONAL', 'PRIVATE', 'ASSOCIATION']),
   description: z.string().max(1000).optional(),
   order: z.number().int().min(0).default(0),
 })
@@ -18,12 +18,12 @@ const PartnerSchema = z.object({
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const type = searchParams.get('type') as 'INSTITUTIONAL' | 'PRIVATE' | null
+    const type = searchParams.get('type') as any
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
     const per = Math.min(50, Math.max(1, parseInt(searchParams.get('per') || '10')))
 
     const where: any = {}
-    if (type && ['INSTITUTIONAL', 'PRIVATE'].includes(type)) {
+    if (type && ['INSTITUTIONAL', 'PRIVATE', 'ASSOCIATION'].includes(type)) {
       where.type = type
     }
 

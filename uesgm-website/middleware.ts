@@ -82,6 +82,9 @@ function addSecurityHeaders(response: NextResponse) {
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'none'; object-src 'none';")
+  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()')
   return response
 }
 
@@ -214,7 +217,7 @@ export async function middleware(request: NextRequest) {
     // Vérifier le rôle pour les routes admin
     if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
       const userRole = (token.role as string) || 'MEMBER'
-      if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
+      if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN' && userRole !== 'MODERATOR') {
         const redirectResponse = NextResponse.redirect(new URL('/unauthorized', request.url))
         return addSecurityHeaders(redirectResponse)
       }

@@ -1,38 +1,52 @@
-import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { getServerSession } from "next-auth/next"
+import { prisma } from "@/lib/prisma"
+import { authOptions } from "@/lib/auth"
 
-// Schéma de validation amélioré
+const PartnerType = {
+  INSTITUTIONAL: 'INSTITUTIONAL',
+  PRIVATE: 'PRIVATE',
+  ASSOCIATION: 'ASSOCIATION'
+} as const
+
 const PartnerSchema = z.object({
   name: z.string().min(2).max(100),
-  logo: z.string().url().optional(),
-  website: z.string().url().optional(),
-  type: z.enum(['INSTITUTIONAL', 'PRIVATE']),
-  description: z.string().max(1000).optional(),
+  logo: z.string().url().optional().nullable(),
+  website: z.string().url().optional().nullable(),
+  type: z.nativeEnum(PartnerType),
+  description: z.string().max(1000).optional().nullable(),
   order: z.number().int().min(0).default(0),
+  isActive: z.boolean().default(true),
 })
 
-// GET - Liste des partenaires
-export async function GET(req: Request) {
+const QuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  per: z.coerce.number().min(1).max(50).default(10),
+  type: z.nativeEnum(PartnerType).optional(),
+  admin: z.coerce.boolean().default(false),
+})
+
+export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const type = searchParams.get('type') as 'INSTITUTIONAL' | 'PRIVATE' | null
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-    const per = Math.min(50, Math.max(1, parseInt(searchParams.get('per') || '10')))
+    const query = QuerySchema.parse(Object.fromEntries(searchParams))
+
+    const session = await getServerSession(authOptions)
+    const isAdmin = session?.user && ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes((session.user as any).role)
 
     const where: any = {}
-    if (type && ['INSTITUTIONAL', 'PRIVATE'].includes(type)) {
-      where.type = type
+    if (!query.admin || !isAdmin) {
+      where.isActive = true
     }
+    if (query.type) where.type = query.type
 
     const [partners, total] = await Promise.all([
       prisma.partner.findMany({
         where,
         orderBy: { order: 'asc' },
-        skip: (page - 1) * per,
-        take: per,
+        skip: (query.page - 1) * query.per,
+        take: query.per,
       }),
       prisma.partner.count({ where }),
     ])
@@ -41,156 +55,34 @@ export async function GET(req: Request) {
       success: true,
       data: partners,
       pagination: {
-        page,
-        per,
+        page: query.page,
+        per: query.per,
         total,
-        pages: Math.ceil(total / per),
-        hasNext: page * per < total,
+        pages: Math.ceil(total / query.per),
       },
     })
-  } catch (error) {
-    console.error('❌ Erreur GET /api/partners:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    console.error('❌ GET /api/partners error:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
 
-// POST - Ajouter un partenaire (admin uniquement)
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
+    if (!session?.user || !['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes((session.user as any).role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
-    const partnerData = PartnerSchema.parse(body)
+    const data = PartnerSchema.parse(body)
 
-    const partner = await prisma.partner.create({
-      data: partnerData,
-    })
+    const partner = await prisma.partner.create({ data })
 
-    return NextResponse.json(
-      { success: true, data: partner },
-      { status: 201 }
-    )
+    return NextResponse.json({ success: true, data: partner }, { status: 201 })
   } catch (error: any) {
-    console.error('❌ Erreur POST /api/partners:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
-  }
-}
-
-// PUT - Mise à jour d'un partenaire (admin uniquement)
-export async function PUT(req: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
-
-    const body = await req.json()
-    const { id, ...updateData } = body
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID du partenaire requis' },
-        { status: 400 }
-      )
-    }
-
-    const updateSchema = PartnerSchema.partial()
-    const validatedData = updateSchema.parse(updateData)
-
-    const partner = await prisma.partner.update({
-      where: { id },
-      data: validatedData,
-    })
-
-    return NextResponse.json(
-      { success: true, data: partner },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur PUT /api/partners:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
-    }
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Partenaire non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
-  }
-}
-
-// DELETE - Suppression d'un partenaire (admin uniquement)
-export async function DELETE(req: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
-
-    const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID du partenaire requis' },
-        { status: 400 }
-      )
-    }
-
-    await prisma.partner.delete({
-      where: { id }
-    })
-
-    return NextResponse.json(
-      { success: true, message: 'Partenaire supprimé avec succès' },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur DELETE /api/partners:', error)
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Partenaire non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    if (error instanceof z.ZodError) return NextResponse.json({ error: 'Invalid data', details: error.errors }, { status: 400 })
+    console.error('❌ POST /api/partners error:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }

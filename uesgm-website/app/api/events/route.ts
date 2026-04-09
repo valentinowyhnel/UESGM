@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
     const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -253,7 +253,7 @@ export async function PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
     const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -325,7 +325,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
     const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }

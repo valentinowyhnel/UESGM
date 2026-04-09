@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     const detailed = searchParams.get('detailed') === 'true'
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    const isAdmin = session && userRole && ['ADMIN', 'SUPER_ADMIN'].includes(userRole)
+    const isAdmin = session && userRole && ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(userRole)
 
     // Statistiques de base (publiques)
     const baseStats = await prisma.statistics.findFirst({

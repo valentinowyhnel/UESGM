@@ -1,9 +1,11 @@
 import { UserRole } from "@/types/next-auth"
 
 const ROLE_HIERARCHY: Record<UserRole, number> = {
-  SUPER_ADMIN: 3,
-  ADMIN: 2,
+  SUPER_ADMIN: 4,
+  ADMIN: 3,
+  MODERATOR: 2,
   MEMBER: 1,
+  PUBLIC: 0,
 }
 
 /**

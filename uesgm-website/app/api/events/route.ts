@@ -1,132 +1,34 @@
-import { NextRequest, NextResponse } from "next/server"
-import { z } from "zod"
-import { getServerSession } from "next-auth/next"
+import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { authOptions } from "@/lib/auth"
-import type { DefaultSession } from "next-auth"
+import { z } from "zod"
+import { isAdmin } from "@/lib/auth-utils"
 
-// Définition locale des rôles utilisateur
-const UserRole = {
-  ADMIN: 'ADMIN',
-  SUPER_ADMIN: 'SUPER_ADMIN',
-  MEMBER: 'MEMBER'
-} as const
-
-// Définition des enums pour les statuts et catégories d'événements
-const EventStatus = {
-  DRAFT: 'DRAFT',
-  PUBLISHED: 'PUBLISHED',
-  ARCHIVED: 'ARCHIVED',
-  SCHEDULED: 'SCHEDULED'
-} as const
-
-type EventStatus = typeof EventStatus[keyof typeof EventStatus]
-
-const EventCategory = {
-  INTEGRATION: 'INTEGRATION',
-  ACADEMIC: 'ACADEMIC',
-  SOCIAL: 'SOCIAL',
-  CULTURAL: 'CULTURAL'
-} as const
-
-type EventCategory = typeof EventCategory[keyof typeof EventCategory]
-
-// Schema for creating/updating events
-const CreateEventSchema = z.object({
-  title: z.string().min(3).max(100),
-  description: z.string().min(5),
-  location: z.string().min(3),
-  startDate: z.string().or(z.date()),
-  endDate: z.string().or(z.date()).optional(),
-  category: z.nativeEnum(EventCategory).optional(),
-  status: z.nativeEnum(EventStatus).default(EventStatus.DRAFT),
-  maxAttendees: z.number().int().positive().optional(),
-  imageUrl: z.string().url().optional(),
-  antenneId: z.string().optional(),
+const querySchema = z.object({
+  page: z.string().transform(Number).default("1"),
+  per: z.string().transform(Number).default("10"),
+  category: z.string().optional(),
+  status: z.enum(["upcoming", "past", "all"]).default("upcoming"),
+  search: z.string().optional(),
+  published: z.enum(["true", "false", "all"]).default("true"),
 })
 
-// Interface pour les événements publics
-type PublicEvent = {
-  id: string
-  title: string
-  slug: string
-  description: string
-  location: string
-  imageUrl: string | null
-  category: EventCategory
-  status: EventStatus
-  startDate: Date
-  endDate: Date | null
-  maxAttendees: number | null
-  createdAt: Date
-  updatedAt: Date
-  publishedAt: Date | null
-  createdBy: {
-    id: string
-    name: string | null
-    email: string
-  }
-  _count?: {
-    attendees: number
-  }
-}
-
-// Schéma de validation pour les requêtes publiques
-const PublicEventQuerySchema = z.object({
-  page: z.coerce.number().min(1).default(1),
-  per: z.coerce.number().min(1).max(50).default(10),
-  category: z.nativeEnum(EventCategory).optional(),
-  search: z.string().optional().nullable(),
-  status: z.enum(['upcoming', 'past', 'all']).default('upcoming')
-})
-
-// Type pour l'utilisateur authentifié
-type AuthenticatedUser = {
-  id: string
-  email: string
-  name: string
-  role: keyof typeof UserRole
-}
-
-// Les types d'authentification sont définis dans types/next-auth.d.ts
-
-// GET - Récupérer les événements
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const query = PublicEventQuerySchema.parse({
-      page: Number(searchParams.get('page')) || 1,
-      per: Number(searchParams.get('per')) || 10,
-      category: searchParams.get('category') || undefined,
-      search: searchParams.get('search') || undefined,
-      status: searchParams.get('status') || 'upcoming',
-    })
+    const query = querySchema.parse(Object.fromEntries(searchParams))
 
-    const where: any = {
-      OR: [
-        { status: EventStatus.PUBLISHED },
-        // Afficher aussi les événements programmés dont la date de publication est passée
-        {
-          status: EventStatus.SCHEDULED,
-          publishedAt: { lte: new Date() }
-        }
-      ]
+    const where: any = {}
+
+    if (query.category) {
+      where.category = query.category
     }
-    
-    // Filtre par statut
-    if (query.status !== 'all') {
-      const now = new Date()
-      if (query.status === 'upcoming') {
-        where.startDate = { gte: now }
-      } else if (query.status === 'past') {
-        where.startDate = { lt: now }
-      }
+
+    if (query.status === "upcoming") {
+      where.date = { gte: new Date() }
+    } else if (query.status === "past") {
+      where.date = { lt: new Date() }
     }
-    
-    // Filtres additionnels
-    if (query.category) where.category = query.category
-    
-    // Recherche textuelle
+
     if (query.search) {
       where.OR = [
         { title: { contains: query.search, mode: 'insensitive' } },
@@ -135,26 +37,25 @@ export async function GET(req: NextRequest) {
       ]
     }
 
+    if (query.published === "true") {
+      where.published = true
+    } else if (query.published === "false") {
+      where.published = false
+    }
+
     const [events, total] = await Promise.all([
       prisma.event.findMany({
         where,
-        orderBy: { startDate: query.status === 'past' ? 'desc' : 'asc' },
         skip: (query.page - 1) * query.per,
         take: query.per,
+        orderBy: { date: 'asc' },
         include: {
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          },
           _count: {
-            select: { registrations: true }
+            select: { attendees: true }
           }
         }
       }),
-      prisma.event.count({ where }),
+      prisma.event.count({ where })
     ])
 
     return NextResponse.json({
@@ -165,202 +66,103 @@ export async function GET(req: NextRequest) {
         per: query.per,
         total,
         pages: Math.ceil(total / query.per),
-        hasNext: query.page * query.per < total,
-      },
+        hasNext: query.page * query.per < total
+      }
     })
   } catch (error) {
-    console.error('❌ Erreur GET /api/events:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Paramètres invalides", details: error.errors }, { status: 400 })
+    }
+    console.error("Events GET API Error:", error)
+    return NextResponse.json({ error: "Erreur interne du serveur" }, { status: 500 })
   }
 }
 
-// POST - Création d'événement (admin uniquement)
-export async function POST(req: NextRequest) {
+const eventSchema = z.object({
+  title: z.string().min(3),
+  slug: z.string().min(3),
+  description: z.string().optional(),
+  date: z.string().transform(val => new Date(val)),
+  location: z.string().optional(),
+  category: z.string().optional(),
+  imageUrl: z.string().url().optional().or(z.literal('')),
+  published: z.boolean().default(false),
+})
+
+export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
-    const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
+    if (!await isAdmin()) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 403 })
     }
 
     const body = await req.json()
-    const eventData = CreateEventSchema.parse(body)
-
-    // Générer un slug unique
-    const slug = eventData.title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '-')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim()
+    const validatedData = eventSchema.parse(body)
 
     const event = await prisma.event.create({
-      data: {
-        title: eventData.title,
-        description: eventData.description,
-        location: eventData.location,
-        startDate: new Date(eventData.startDate),
-        endDate: eventData.endDate ? new Date(eventData.endDate) : null,
-        category: eventData.category || EventCategory.INTEGRATION,
-        status: eventData.status,
-        maxAttendees: eventData.maxAttendees,
-        imageUrl: eventData.imageUrl || null,
-        slug,
-        createdById: session.user.id,
-        publishedAt: eventData.status === EventStatus.PUBLISHED ? new Date() : null,
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        _count: {
-          select: { registrations: true }
-        }
-      }
+      data: validatedData
     })
 
-    return NextResponse.json(
-      { success: true, data: event },
-      { status: 201 }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur POST /api/events:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
+    return NextResponse.json({ success: true, data: event }, { status: 201 })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Données invalides", details: error.errors }, { status: 400 })
     }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    console.error("Events POST API Error:", error)
+    return NextResponse.json({ error: "Erreur interne du serveur" }, { status: 500 })
   }
 }
 
-// PUT - Mise à jour d'un événement (admin uniquement)
-export async function PUT(req: NextRequest) {
+export async function PUT(req: Request) {
   try {
-    const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
-    const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
-
-    const body = await req.json()
-    const { id, ...updateFields } = body
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID de l\'événement requis' },
-        { status: 400 }
-      )
-    }
-
-    const updateSchema = CreateEventSchema.partial()
-    const validatedData = updateSchema.parse(updateFields)
-
-    // Préparer les données de mise à jour
-    const updateData: any = { ...validatedData }
-    
-    // Convertir les dates si elles sont présentes
-    if (updateData.startDate) updateData.startDate = new Date(updateData.startDate)
-    if (updateData.endDate) updateData.endDate = new Date(updateData.endDate)
-    
-    // Si l'événement est publié, définir publishedAt
-    if (updateData.status === 'PUBLISHED' && !updateData.publishedAt) {
-      updateData.publishedAt = new Date()
-    }
-
-    const event = await prisma.event.update({
-      where: { id },
-      data: updateData,
-      include: {
-        _count: {
-          select: { registrations: true }
-        }
-      }
-    })
-
-    return NextResponse.json(
-      { success: true, data: event },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur PUT /api/events:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
-    }
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Événement non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
-  }
-}
-
-// DELETE - Suppression d'un événement (admin uniquement)
-export async function DELETE(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
-    const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
+    if (!await isAdmin()) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 403 })
     }
 
     const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
-    
+    const id = searchParams.get("id")
+
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID de l\'événement requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "ID requis" }, { status: 400 })
+    }
+
+    const body = await req.json()
+    const validatedData = eventSchema.partial().parse(body)
+
+    const event = await prisma.event.update({
+      where: { id },
+      data: validatedData
+    })
+
+    return NextResponse.json({ success: true, data: event })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Données invalides", details: error.errors }, { status: 400 })
+    }
+    console.error("Events PUT API Error:", error)
+    return NextResponse.json({ error: "Erreur interne du serveur" }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    if (!await isAdmin()) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 403 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get("id")
+
+    if (!id) {
+      return NextResponse.json({ error: "ID requis" }, { status: 400 })
     }
 
     await prisma.event.delete({
       where: { id }
     })
 
-    return NextResponse.json(
-      { success: true, message: 'Événement supprimé avec succès' },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur DELETE /api/events:', error)
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Événement non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: true, message: "Événement supprimé" })
+  } catch (error) {
+    console.error("Events DELETE API Error:", error)
+    return NextResponse.json({ error: "Erreur interne du serveur" }, { status: 500 })
   }
 }

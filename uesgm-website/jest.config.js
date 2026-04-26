@@ -1,32 +1,19 @@
-/**
- * Configuration Jest pour les tests UESGM
- */
+const nextJest = require('next/jest')
 
-module.exports = {
-  testEnvironment: 'node',
+const createJestConfig = nextJest({
+  dir: './',
+})
+
+const customJestConfig = {
+  // setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  testEnvironment: 'jest-environment-node',
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/$1',
+  },
   testMatch: [
+    '**/tests/**/*.test.ts',
     '**/tests/**/*.test.js',
-    '**/tests/**/*.spec.js'
   ],
-  collectCoverageFrom: [
-    'app/api/**/*.js',
-    'lib/**/*.js',
-    '!app/api/**/route.js',
-    '!**/node_modules/**',
-    '!**/tests/**'
-  ],
-  coverageReporters: [
-    'text',
-    'lcov',
-    'html'
-  ],
-  coverageDirectory: 'coverage',
-  setupFilesAfterEnv: [
-    '<rootDir>/tests/setup.js'
-  ],
-  testTimeout: 30000,
-  verbose: true,
-  forceExit: true,
-  clearMocks: true,
-  restoreMocks: true
 }
+
+module.exports = createJestConfig(customJestConfig)

@@ -77,7 +77,8 @@ const PublicEventQuerySchema = z.object({
   per: z.coerce.number().min(1).max(50).default(10),
   category: z.nativeEnum(EventCategory).optional(),
   search: z.string().optional().nullable(),
-  status: z.enum(['upcoming', 'past', 'all']).default('upcoming')
+  status: z.enum(['upcoming', 'past', 'all']).default('upcoming'),
+  published: z.enum(['true', 'false', 'all']).default('all'),
 })
 
 // Type pour l'utilisateur authentifié
@@ -102,18 +103,22 @@ export async function GET(req: NextRequest) {
       status: searchParams.get('status') || 'upcoming',
     })
 
-    const where: any = {
-      OR: [
-        { status: EventStatus.PUBLISHED },
-        // Afficher aussi les événements programmés dont la date de publication est passée
-        {
-          status: EventStatus.SCHEDULED,
-          publishedAt: { lte: new Date() }
-        }
-      ]
-    }
+    const where: any = {}
     
-    // Filtre par statut
+    // Filtre par statut de publication
+    if (query.published === 'true') {
+      where.published = true
+    } else if (query.published === 'false') {
+      where.published = false
+    } else {
+      // Par défaut pour le public, seulement les publiés
+      const session = await getServerSession(authOptions)
+      if (!session) {
+        where.published = true
+      }
+    }
+
+    // Filtre par statut temporel
     if (query.status !== 'all') {
       const now = new Date()
       if (query.status === 'upcoming') {

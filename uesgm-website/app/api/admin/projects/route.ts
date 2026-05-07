@@ -127,7 +127,7 @@ export const POST = withAdminAuth(async (req: NextRequest) => {
         slug: body.slug || body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         startDate: body.startDate ? new Date(body.startDate) : null,
         endDate: body.endDate ? new Date(body.endDate) : null,
-        isPublished: body.isPublished || false,
+        published: body.published || body.isPublished || false,
         imageUrl: body.imageUrl || null,
         createdById: user.id,
         // Ajouter les images si présentes
@@ -159,7 +159,7 @@ export const POST = withAdminAuth(async (req: NextRequest) => {
 
     // Revalidation du cache - toujours rafraichir les pages admin
     revalidatePath('/admin/projets')
-    if (body.isPublished === true) {
+    if (body.published === true || body.isPublished === true) {
       revalidatePath('/projets')
     }
 

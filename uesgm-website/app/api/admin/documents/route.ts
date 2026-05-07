@@ -132,10 +132,10 @@ export async function POST(req: Request) {
         category: category as any,
         visibility: visibility as any,
         canDownload,
-        isPublished: published,
+        published: published,
         fileUrl,
         fileName: fileName || null,
-        mimeType: mimeType || null,
+        fileType: mimeType || "application/octet-stream",
         fileSize: fileSize || 0,
         createdById: user.id,
         tags: {
@@ -157,7 +157,7 @@ export async function POST(req: Request) {
       id: doc.id,
       title: doc.title,
       slug: doc.slug,
-      isPublished: doc.isPublished,
+      published: doc.published,
       category: doc.category,
       updatedAt: doc.createdAt.toISOString()
     })

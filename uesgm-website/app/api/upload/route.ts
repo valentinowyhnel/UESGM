@@ -273,13 +273,11 @@ export async function PUT(req: Request) {
             description: confirmData.description,
             category: confirmData.category as any || 'ARTICLE',
             fileUrl: `https://uesgm.ma/uploads/${confirmData.fileName}`,
-            mimeType: confirmData.mimeType,
+            fileType: confirmData.mimeType,
             fileSize: confirmData.fileSize,
             fileName: confirmData.fileName,
-            isPublished: false,
-            createdBy: {
-              connect: { email: session.user.email }
-            },
+            published: false,
+            createdById: (session.user as any).id,
             // Initialiser les tags
             tags: {
               create: (confirmData.tags || []).map((tag: string) => ({
@@ -315,7 +313,7 @@ export async function PUT(req: Request) {
         if (confirmData.memberId) {
           await prisma.executiveMember.update({
             where: { id: confirmData.memberId },
-            data: { photo: `https://uesgm.ma/uploads/${confirmData.fileName}` }
+            data: { photoUrl: `https://uesgm.ma/uploads/${confirmData.fileName}` }
           })
         }
         break
@@ -379,10 +377,10 @@ export async function GET(req: Request) {
         id: true,
         title: true,
         category: true,
-        mimeType: true,
+        fileType: true,
         fileSize: true,
         downloads: true,
-        isPublished: true,
+        published: true,
         fileName: true,
         fileUrl: true,
         createdAt: true,

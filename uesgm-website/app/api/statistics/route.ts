@@ -13,14 +13,7 @@ export async function GET(req: Request) {
     const isAdmin = session && userRole && ['ADMIN', 'SUPER_ADMIN'].includes(userRole)
 
     // Statistiques de base (publiques)
-    const baseStats = await prisma.statistics.findFirst({
-      select: {
-        totalMembers: true,
-        totalAntennes: true,
-        totalEvents: true,
-        updatedAt: true,
-      }
-    })
+    const baseStats = await prisma.statistics.findMany()
 
     // Comptes en temps réel
     const [
@@ -39,17 +32,17 @@ export async function GET(req: Request) {
       unreadContactMessages,
     ] = await Promise.all([
       prisma.event.count(),
-      prisma.event.count({ where: { status: 'PUBLISHED' } }),
+      prisma.event.count({ where: { published: true } }),
       prisma.event.count({ 
         where: { 
-          status: 'PUBLISHED',
+          published: true,
           startDate: { gte: new Date() }
         } 
       }),
       prisma.project.count(),
-      prisma.project.count({ where: { isPublished: true } }),
+      prisma.project.count({ where: { published: true } }),
       prisma.document.count(),
-      prisma.document.count({ where: { isPublished: true } }),
+      prisma.document.count({ where: { published: true } }),
       prisma.partner.count(),
       prisma.antenne.count(),
       prisma.newsletter.count(),
@@ -81,7 +74,8 @@ export async function GET(req: Request) {
       },
       
       // Dernière mise à jour
-      lastUpdated: baseStats?.updatedAt || new Date(),
+      lastUpdated: new Date(),
+      extra: Object.fromEntries(baseStats.map(s => [s.key, s.value]))
     }
 
     // Statistiques détaillées (admin uniquement)
@@ -98,7 +92,7 @@ export async function GET(req: Request) {
         // Événements par catégorie (publiés uniquement)
         prisma.event.groupBy({
           by: ['category'],
-          where: { status: 'PUBLISHED' },
+          where: { published: true },
           _count: { id: true },
         }),
         // Événements par mois (12 derniers mois)
@@ -107,7 +101,7 @@ export async function GET(req: Request) {
             DATE_TRUNC('month', "startDate") as month,
             COUNT(*) as count
           FROM "Event"
-          WHERE "status" = 'PUBLISHED'
+          WHERE "published" = true
             AND "startDate" >= NOW() - INTERVAL '1 year'
           GROUP BY DATE_TRUNC('month', "startDate")
           ORDER BY month DESC
@@ -116,13 +110,13 @@ export async function GET(req: Request) {
         // Projets par statut
         prisma.project.groupBy({
           by: ['status'],
-          where: { isPublished: true },
+          where: { published: true },
           _count: { id: true },
         }),
         // Documents par catégorie
         prisma.document.groupBy({
           by: ['category'],
-          where: { isPublished: true },
+          where: { published: true },
           _count: { id: true },
         }),
         // Partenaires par type

@@ -174,7 +174,7 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
       )
     }
 
-    const { title, description, location, category, startDate, endDate, maxAttendees, imageUrl, images, publishMode, publishedAt, published, antenneIds } = validation.data
+    const { title, description, location, category, startDate, endDate, maxAttendees, imageUrl, images, publishMode, publishedAt, published: publishedReq, antenneIds } = validation.data
 
     // Validation des dates
     const start = new Date(startDate)
@@ -209,11 +209,13 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
     // Par défaut : DRAFT (brouillon)
     let status: 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' = 'DRAFT'
     let finalPublishedAt: Date | null = null
+    let isPublished = publishedReq || false
 
     // Si publishMode est fourni (publication immédiate ou programmée)
     if (publishMode === 'NOW') {
       status = 'PUBLISHED'
       finalPublishedAt = new Date()
+      isPublished = true
     } else if (publishMode === 'SCHEDULED' && publishedAt) {
       status = 'SCHEDULED'
       finalPublishedAt = new Date(publishedAt)
@@ -249,6 +251,7 @@ export const POST = withAdminAuth(async (req: NextRequest, user) => {
         maxAttendees,
         imageUrl: finalImageUrl,
         status,
+        published: isPublished,
         publishedAt: finalPublishedAt,
         createdById: user.id,
         // Ajouter les images si présentes
@@ -367,7 +370,7 @@ export const PUT = withAdminAuth(async (req: NextRequest, user) => {
     }
 
     const updates: any = {}
-    const { title, description, location, category, startDate, endDate, maxAttendees, imageUrl, status: newStatus, publishedAt, antenneIds } = validation.data
+    const { title, description, location, category, startDate, endDate, maxAttendees, imageUrl, status: newStatus, publishedAt, published: newPublished, antenneIds } = validation.data
 
     // Mise à jour des champs
     if (title !== undefined) updates.title = title
@@ -378,6 +381,7 @@ export const PUT = withAdminAuth(async (req: NextRequest, user) => {
     if (endDate !== undefined) updates.endDate = new Date(endDate)
     if (maxAttendees !== undefined) updates.maxAttendees = maxAttendees
     if (imageUrl !== undefined) updates.imageUrl = imageUrl
+    if (newPublished !== undefined) updates.published = newPublished
 
     // Gestion du statut et de la publication
     if (newStatus) {
@@ -385,6 +389,7 @@ export const PUT = withAdminAuth(async (req: NextRequest, user) => {
       
       if (newStatus === 'PUBLISHED') {
         updates.publishedAt = new Date()
+        updates.published = true
       } else if (newStatus === 'SCHEDULED' && publishedAt) {
         updates.publishedAt = new Date(publishedAt)
       }

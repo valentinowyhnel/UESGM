@@ -76,7 +76,7 @@ export async function GET(req: Request) {
       prisma.project.findMany({
         where,
         orderBy: [
-          { isPublished: 'desc' },
+          { published: 'desc' },
           { createdAt: 'desc' }
         ],
         skip: (query.page - 1) * query.per,
@@ -139,9 +139,7 @@ export async function POST(req: Request) {
         category: projectData.category as any, // Conversion du type pour correspondre à ProjectCategory
         slug,
         shortDesc: projectData.description.substring(0, 200), // Utilise les 200 premiers caractères de la description
-        createdBy: {
-          connect: { id: (session.user as any).id }
-        },
+        createdById: (session.user as any).id,
         startDate: projectData.startDate ? new Date(projectData.startDate) : undefined,
         endDate: projectData.endDate ? new Date(projectData.endDate) : undefined,
       },

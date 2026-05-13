@@ -260,6 +260,47 @@ export const sendNewsletterSchema = z.object({
 })
 
 // ============================================
+// CONTACT SCHEMAS
+// ============================================
+
+/**
+ * Contact message schema
+ */
+export const contactSchema = z.object({
+  name: z.string().min(2, "Le nom doit contenir au moins 2 caractères").max(100),
+  email: z.string().email("Email invalide"),
+  subject: z.string().min(5, "Le sujet doit contenir au moins 5 caractères").max(200).optional().or(z.literal('')),
+  message: z.string().min(10, "Le message doit contenir au moins 10 caractères").max(2000),
+})
+
+/**
+ * Executive member schema
+ */
+export const executiveMemberSchema = z.object({
+  name: z.string().min(2).max(100),
+  position: z.string().min(2).max(100),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().optional().or(z.literal('')),
+  photoUrl: z.string().url().optional().or(z.literal('')),
+  bio: z.string().max(1000).optional().or(z.literal('')),
+  order: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+})
+
+/**
+ * Partner schema
+ */
+export const partnerSchema = z.object({
+  name: z.string().min(2).max(100),
+  type: z.enum(['INSTITUTIONAL', 'PRIVATE', 'ASSOCIATION']),
+  logoUrl: z.string().url().optional().or(z.literal('')),
+  website: z.string().url().optional().or(z.literal('')),
+  description: z.string().max(1000).optional().or(z.literal('')),
+  order: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+})
+
+// ============================================
 // TYPE EXPORTS
 // ============================================
 

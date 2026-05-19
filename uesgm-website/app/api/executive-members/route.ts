@@ -1,175 +1,109 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import prisma from "@/lib/prisma"
 import { z } from "zod"
+import { Role } from "@prisma/client"
+import { requireRole } from "@/lib/auth/requireRole"
 
-// Schéma de validation amélioré
-const ExecutiveMemberSchema = z.object({
+const memberSchema = z.object({
   name: z.string().min(2).max(100),
   position: z.string().min(2).max(100),
-  email: z.string().email().max(255).optional(),
-  phone: z.string().max(20).optional(),
-  photo: z.string().url().optional(),
-  order: z.number().int().min(0).default(0),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  photoUrl: z.string().url().optional().nullable(),
+  bio: z.string().optional().nullable(),
+  order: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+  facebook: z.string().url().optional().nullable(),
+  linkedin: z.string().url().optional().nullable(),
 })
 
-// GET - Liste des membres du bureau exécutif
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(req.url)
-    const published = searchParams.get('published') !== 'false'
+    const { searchParams } = new URL(request.url)
+    const activeOnly = searchParams.get("published") !== "false"
+
+    const where: any = {}
+    if (activeOnly) where.isActive = true
 
     const members = await prisma.executiveMember.findMany({
-      where: published ? {} : {}, // Tous les membres pour l'admin
-      orderBy: { order: 'asc' },
+      where,
+      orderBy: { order: "asc" }
     })
 
-    return NextResponse.json({
-      success: true,
-      data: members,
-    })
+    return NextResponse.json({ success: true, data: members })
   } catch (error) {
-    console.error('❌ Erreur GET /api/executive-members:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    console.error("GET /api/executive-members error:", error)
+    return NextResponse.json({ success: false, error: "Erreur serveur" }, { status: 500 })
   }
 }
 
-// POST - Ajouter un membre (admin uniquement)
-export async function POST(req: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
+export async function POST(request: Request) {
+  const { authorized, response } = await requireRole(Role.ADMIN)
+  if (!authorized) return response
 
-    const body = await req.json()
-    const memberData = ExecutiveMemberSchema.parse(body)
+  try {
+    const body = await request.json()
+    const validatedData = memberSchema.parse(body)
 
     const member = await prisma.executiveMember.create({
-      data: memberData,
+      data: {
+        ...validatedData,
+        photo: validatedData.photoUrl // Backward compatibility
+      }
     })
 
-    return NextResponse.json(
-      { success: true, data: member },
-      { status: 201 }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur POST /api/executive-members:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
+    return NextResponse.json({ success: true, data: member }, { status: 201 })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ success: false, error: "Données invalides", details: error.errors }, { status: 400 })
     }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    console.error("POST /api/executive-members error:", error)
+    return NextResponse.json({ success: false, error: "Erreur lors de la création" }, { status: 500 })
   }
 }
 
-// PUT - Mettre à jour un membre (admin uniquement)
-export async function PUT(req: Request) {
+export async function PUT(request: Request) {
+  const { authorized, response } = await requireRole(Role.ADMIN)
+  if (!authorized) return response
+
   try {
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
+    const body = await request.json()
+    const { id, ...data } = body
+    if (!id) return NextResponse.json({ success: false, error: "ID requis" }, { status: 400 })
 
-    const body = await req.json()
-    const { id, ...updateData } = body
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID du membre requis' },
-        { status: 400 }
-      )
-    }
-
-    const updateSchema = ExecutiveMemberSchema.partial()
-    const validatedData = updateSchema.parse(updateData)
+    const validatedData = memberSchema.partial().parse(data)
 
     const member = await prisma.executiveMember.update({
       where: { id },
-      data: validatedData,
+      data: {
+        ...validatedData,
+        photo: validatedData.photoUrl !== undefined ? validatedData.photoUrl : undefined
+      }
     })
 
-    return NextResponse.json(
-      { success: true, data: member }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur PUT /api/executive-members:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Données invalides', details: error.errors },
-        { status: 400 }
-      )
+    return NextResponse.json({ success: true, data: member })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ success: false, error: "Données invalides", details: error.errors }, { status: 400 })
     }
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Membre non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    console.error("PUT /api/executive-members error:", error)
+    return NextResponse.json({ success: false, error: "Erreur lors de la mise à jour" }, { status: 500 })
   }
 }
 
-// DELETE - Supprimer un membre (admin uniquement)
-export async function DELETE(req: Request) {
+export async function DELETE(request: Request) {
+  const { authorized, response } = await requireRole(Role.SUPER_ADMIN)
+  if (!authorized) return response
+
   try {
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    if (!id) return NextResponse.json({ success: false, error: "ID requis" }, { status: 400 })
 
-    const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID du membre requis' },
-        { status: 400 }
-      )
-    }
-
-    await prisma.executiveMember.delete({
-      where: { id }
-    })
-
-    return NextResponse.json(
-      { success: true, message: 'Membre supprimé avec succès' }
-    )
-  } catch (error: any) {
-    console.error('❌ Erreur DELETE /api/executive-members:', error)
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Membre non trouvé' },
-        { status: 404 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    await prisma.executiveMember.delete({ where: { id } })
+    return NextResponse.json({ success: true, message: "Membre supprimé" })
+  } catch (error) {
+    console.error("DELETE /api/executive-members error:", error)
+    return NextResponse.json({ success: false, error: "Erreur lors de la suppression" }, { status: 500 })
   }
 }

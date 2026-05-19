@@ -5,7 +5,7 @@
  * ou: npx tsx prisma/seed.ts
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Role, PartnerType, EventStatus, EventCategory, ProjectStatus, ProjectCategory, DocumentCategory, DocumentVisibility } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
@@ -27,7 +27,7 @@ async function main() {
       email: 'admin@uesgm.ma',
       name: 'Administrateur Principal',
       password: adminPassword,
-      role: 'SUPER_ADMIN',
+      role: Role.SUPER_ADMIN,
       emailVerified: new Date()
     }
   })
@@ -43,11 +43,26 @@ async function main() {
       email: 'president@uesgm.ma',
       name: 'Président UESGM',
       password: presidentPassword,
-      role: 'ADMIN',
+      role: Role.ADMIN,
       emailVerified: new Date()
     }
   })
   console.log(`✅ President créé: ${presidentUser.email}`)
+
+  // Compte Moderator
+  const moderatorPassword = await bcrypt.hash('Moderator_2025!', 12)
+  const moderatorUser = await prisma.user.upsert({
+    where: { email: 'mod@uesgm.ma' },
+    update: {},
+    create: {
+      email: 'mod@uesgm.ma',
+      name: 'Modérateur',
+      password: moderatorPassword,
+      role: Role.MODERATOR,
+      emailVerified: new Date()
+    }
+  })
+  console.log(`✅ Moderator créé: ${moderatorUser.email}`)
 
   // ============================================
   // CRÉATION DES MEMBRES DU BUREAU EXÉCUTIF
@@ -64,13 +79,16 @@ async function main() {
   for (const member of executiveMembers) {
     await prisma.executiveMember.upsert({
       where: { email: member.name.toLowerCase().replace(/ /g, '.') + '@uesgm.ma' },
-      update: {},
+      update: {
+        photoUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.name}`
+      },
       create: {
         name: member.name,
         position: member.position,
         email: member.name.toLowerCase().replace(/ /g, '.') + '@uesgm.ma',
         order: member.order,
-        bio: member.bio
+        bio: member.bio,
+        photoUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.name}`
       }
     })
   }
@@ -103,17 +121,19 @@ async function main() {
   // ============================================
   
   const partners = [
-    { name: 'Ambassade du Gabon au Maroc', type: 'INSTITUTIONAL' as const, order: 1 },
-    { name: 'Université Mohammed V', type: 'INSTITUTIONAL' as const, order: 2 },
-    { name: 'Université Hassan II', type: 'INSTITUTIONAL' as const, order: 3 },
-    { name: 'OCSID', type: 'ASSOCIATION' as const, order: 4 },
-    { name: 'BGF', type: 'PRIVATE' as const, order: 5 },
+    { name: 'Ambassade du Gabon au Maroc', type: PartnerType.INSTITUTIONAL, order: 1, logoUrl: 'https://placehold.co/200x200?text=Ambassade' },
+    { name: 'Université Mohammed V', type: PartnerType.INSTITUTIONAL, order: 2, logoUrl: 'https://placehold.co/200x200?text=UM5' },
+    { name: 'Université Hassan II', type: PartnerType.INSTITUTIONAL, order: 3, logoUrl: 'https://placehold.co/200x200?text=UH2' },
+    { name: 'OCSID', type: PartnerType.ASSOCIATION, order: 4, logoUrl: 'https://placehold.co/200x200?text=OCSID' },
+    { name: 'BGF', type: PartnerType.PRIVATE, order: 5, logoUrl: 'https://placehold.co/200x200?text=BGF' },
   ]
 
   for (const partner of partners) {
     await prisma.partner.upsert({
       where: { name: partner.name },
-      update: {},
+      update: {
+        logoUrl: partner.logoUrl
+      },
       create: partner
     })
   }
@@ -124,15 +144,30 @@ async function main() {
   // ============================================
   
   await prisma.statistics.upsert({
-    where: { id: 'global-stats' },
-    update: {},
+    where: { key: 'global' },
+    update: {
+      value: JSON.stringify({
+        totalMembers: 150,
+        totalAntennes: antennes.length,
+        totalEvents: 1,
+        totalProjects: 1,
+        totalDocuments: 1
+      })
+    },
     create: {
-      id: 'global-stats',
+      key: 'global',
+      value: JSON.stringify({
+        totalMembers: 150,
+        totalAntennes: antennes.length,
+        totalEvents: 1,
+        totalProjects: 1,
+        totalDocuments: 1
+      }),
       totalMembers: 150,
       totalAntennes: antennes.length,
-      totalEvents: 0,
-      totalProjects: 0,
-      totalDocuments: 0
+      totalEvents: 1,
+      totalProjects: 1,
+      totalDocuments: 1
     }
   })
   console.log(`✅ Statistiques initiales créées`)
@@ -143,16 +178,21 @@ async function main() {
   
   const event = await prisma.event.upsert({
     where: { slug: 'journee-integration-2024' },
-    update: {},
+    update: {
+      published: true,
+      isPast: false
+    },
     create: {
       title: 'Journée d\'Intégration 2024',
       description: 'Journée d\'intégration des nouveaux étudiants gabonais au Maroc. Au programme: activités culturelles, rencontres et networking.',
       location: 'Rabat, Maroc',
       startDate: new Date('2024-10-15T14:00:00Z'),
       slug: 'journee-integration-2024',
-      status: 'PUBLISHED',
-      category: 'INTEGRATION',
+      status: EventStatus.PUBLISHED,
+      category: EventCategory.INTEGRATION,
       publishedAt: new Date(),
+      published: true,
+      isPast: false,
       maxAttendees: 100,
       createdById: adminUser.id
     }
@@ -165,15 +205,20 @@ async function main() {
   
   const project = await prisma.project.upsert({
     where: { slug: 'programme-soutien-scolaire' },
-    update: {},
+    update: {
+      published: true,
+      summary: 'Mentorat et soutien pour les étudiants gabonais'
+    },
     create: {
       title: 'Programme de Soutien Scolaire',
       slug: 'programme-soutien-scolaire',
       description: 'Programme de mentorat et de soutien scolaire pour les étudiants gabonais au Maroc. Nous aidons les nouveaux étudiants à s\'adapter au système éducatif marocain.',
       shortDesc: 'Mentorat et soutien pour les étudiants',
-      category: 'EDUCATION',
-      status: 'IN_PROGRESS',
+      summary: 'Mentorat et soutien pour les étudiants gabonais',
+      category: ProjectCategory.EDUCATION,
+      status: ProjectStatus.IN_PROGRESS,
       progress: 35,
+      published: true,
       isPublished: true,
       startDate: new Date('2024-09-01'),
       createdById: adminUser.id
@@ -187,17 +232,22 @@ async function main() {
   
   await prisma.document.upsert({
     where: { slug: 'guide-accueil-2024' },
-    update: {},
+    update: {
+      published: true,
+      fileType: 'application/pdf'
+    },
     create: {
       title: 'Guide d\'Accueil 2024',
       slug: 'guide-accueil-2024',
       description: 'Guide complet pour les nouveaux étudiants gabonais au Maroc',
-      category: 'GUIDE',
-      visibility: 'PUBLIC',
+      category: DocumentCategory.GUIDE,
+      visibility: DocumentVisibility.PUBLIC,
       fileUrl: 'https://example.com/guide.pdf',
       fileName: 'guide-accueil-2024.pdf',
       fileSize: 2500000,
       mimeType: 'application/pdf',
+      fileType: 'application/pdf',
+      published: true,
       isPublished: true,
       downloads: 0,
       createdById: adminUser.id
@@ -209,6 +259,7 @@ async function main() {
   console.log('\n📋 Comptes administrateur:')
   console.log('   - Admin: admin@uesgm.ma / 7d99755735371a9f891309e336bf8f71 (SUPER_ADMIN)')
   console.log('   - President: president@uesgm.ma / UESGM_President_2025_Secret! (ADMIN)')
+  console.log('   - Moderator: mod@uesgm.ma / Moderator_2025! (MODERATOR)')
 }
 
 main()

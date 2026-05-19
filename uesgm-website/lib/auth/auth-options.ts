@@ -1,13 +1,11 @@
 import { PrismaAdapter } from "@auth/prisma-adapter"
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, Role } from "@prisma/client"
 import type { DefaultSession, User as NextAuthUser } from "next-auth"
 import type { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import type { Adapter } from "next-auth/adapters"
 import bcrypt from "bcryptjs"
-
-import { UserRole } from "@/types/next-auth"
 
 const prisma = new PrismaClient()
 
@@ -28,7 +26,7 @@ function getDelay(attemptCount: number): number {
 
 // Fonction pour vérifier si une adresse email est autorisée (pour OAuth)
 const isAuthorizedEmail = (email: string): boolean => {
-  const allowedDomains = ["gmail.com", "esgm.ma"]
+  const allowedDomains = ["gmail.com", "uesgm.ma"]
   const emailDomain = email.split('@')[1]
   return allowedDomains.includes(emailDomain)
 }
@@ -53,15 +51,15 @@ export const authOptions: NextAuthOptions = {
           name: profile.name,
           email: profile.email,
           image: profile.picture,
-          role: "MEMBER" as UserRole
+          role: Role.MEMBER
         }
       }
     }),
     // Provider Credentials pour login admin
     CredentialsProvider({
-      name: "Administrateur",
+      name: "Connexion",
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "admin@uesgm.ma" },
+        email: { label: "Email", type: "email", placeholder: "votre@email.ma" },
         password: { label: "Mot de passe", type: "password" }
       },
       async authorize(credentials) {
@@ -98,13 +96,6 @@ export const authOptions: NextAuthOptions = {
           // ============================================
           // VÉRIFICATION DU MOT DE PASSE
           // ============================================
-          // Vérifier si l'email est vérifié
-          if (!user.emailVerified) {
-            console.error(`❌ Auth: Email non vérifié pour: ${credentials.email}`)
-            await new Promise(resolve => setTimeout(resolve, getDelay(user.failedLoginAttempts)))
-            return null
-          }
-
           // Vérifier le mot de passe avec bcrypt
           if (!user.password) {
             console.error(`❌ Auth: Pas de mot de passe pour l'utilisateur: ${credentials.email}`)
@@ -161,13 +152,7 @@ export const authOptions: NextAuthOptions = {
             }
           })
 
-          // Vérifier que l'utilisateur a un rôle valide (ADMIN ou SUPER_ADMIN)
-          const userRole = user.role as string
-          if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
-            console.error(`❌ Auth: Rôle insuffisant pour ${credentials.email}: ${userRole}`)
-            return null
-          }
-
+          const userRole = user.role as Role
           console.log(`✅ Auth: Connexion réussie pour ${credentials.email} avec le rôle ${userRole}`)
 
           // Retourner l'utilisateur avec son rôle
@@ -181,7 +166,7 @@ export const authOptions: NextAuthOptions = {
         } catch (error: any) {
           console.error("❌ Auth: Erreur lors de l'authentification:", error)
           // Si c'est une erreur de verrouillage, la propager
-          if (error.message === "Compte verrouillé") {
+          if (error.message === "Compte verrouillé. Veuillez réessayer plus tard.") {
             throw error
           }
           return null
@@ -197,25 +182,21 @@ export const authOptions: NextAuthOptions = {
           return "/auth/unauthorized-email"
         }
       }
-      // Pour les credentials, on autorise si l'utilisateur existe
       return true
     },
     async session({ session, token }) {
-      // Ajouter les propriétés personnalisées à la session
       if (session.user) {
-        session.user.id = token.id as string
-        session.user.role = token.role as UserRole
+        (session.user as any).id = token.id as string;
+        (session.user as any).role = token.role as Role;
       }
       return session
     },
-    async jwt({ token, user, trigger, session, account, profile, isNewUser }) {
-      // Ajouter les propriétés personnalisées au token JWT
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id
-        token.role = (user as any).role || "MEMBER"
+        token.role = (user as any).role || Role.MEMBER
       }
 
-      // Mise à jour du token lors d'une mise à jour de session
       if (trigger === "update" && session?.role) {
         token.role = session.role
       }
@@ -223,7 +204,6 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async redirect({ url, baseUrl }) {
-      // Redirige vers la page d'accueil après connexion
       if (url.startsWith("/")) return `${baseUrl}${url}`
       else if (new URL(url).origin === baseUrl) return url
       return baseUrl
@@ -231,24 +211,11 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 jours - AMÉLIORATION: réduire pour admin
+    maxAge: 30 * 24 * 60 * 60,
   },
   pages: {
     signIn: "/login",
     error: "/auth/error",
-  },
-  events: {
-    async signIn(message) {
-      console.log(`User ${message.user.email} signed in`)
-      
-      // Mise à jour du rôle utilisateur si nécessaire
-      if (message.user.email === "admin@esgm.ma") {
-        await prisma.user.update({
-          where: { email: message.user.email },
-          data: { role: "SUPER_ADMIN" }
-        })
-      }
-    },
   },
   debug: process.env.NODE_ENV === "development",
 }

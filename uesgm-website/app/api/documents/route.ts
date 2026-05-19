@@ -1,25 +1,24 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth/auth-options"
 import prisma from "@/lib/prisma"
 import { z } from "zod"
-import { Role, EventStatus, EventCategory } from "@prisma/client"
+import { Role, DocumentCategory, DocumentVisibility } from "@prisma/client"
 import { requireRole } from "@/lib/auth/requireRole"
-import { sanitizeHtml } from "@/lib/sanitize"
 
-// Schéma de validation pour la création/mise à jour d'événement
-const eventSchema = z.object({
+const documentSchema = z.object({
   title: z.string().min(3).max(200),
-  description: z.string().min(10),
-  location: z.string().min(3),
-  startDate: z.string().transform((str) => new Date(str)),
-  endDate: z.string().optional().transform((str) => str ? new Date(str) : null),
-  imageUrl: z.string().url().optional().nullable(),
-  maxAttendees: z.number().int().positive().optional().nullable(),
-  category: z.nativeEnum(EventCategory),
-  status: z.nativeEnum(EventStatus).default(EventStatus.DRAFT),
+  description: z.string().optional().nullable(),
+  category: z.nativeEnum(DocumentCategory),
+  visibility: z.nativeEnum(DocumentVisibility).default(DocumentVisibility.PUBLIC),
+  canDownload: z.boolean().default(true),
+  fileUrl: z.string().url(),
+  fileName: z.string(),
+  fileSize: z.number().int().positive(),
+  fileType: z.string().optional().nullable(),
+  mimeType: z.string(),
   published: z.boolean().default(false),
-  antenneIds: z.array(z.string()).optional(),
+  submittedByEmail: z.string().email().optional().nullable(),
+  submittedByName: z.string().optional().nullable(),
+  tags_prompt: z.array(z.string()).optional(),
 })
 
 export async function GET(request: Request) {
@@ -27,41 +26,37 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get("page") || "1")
     const perPage = parseInt(searchParams.get("per") || "10")
-    const category = searchParams.get("category") as EventCategory | null
-    const status = searchParams.get("status")
+    const category = searchParams.get("category") as DocumentCategory | null
     const publishedOnly = searchParams.get("published") === "true"
+    const search = searchParams.get("search")
 
     const where: any = {}
     if (category) where.category = category
     if (publishedOnly) where.published = true
-    
-    if (status === "upcoming") {
-      where.startDate = { gte: new Date() }
-    } else if (status === "past") {
-      where.startDate = { lt: new Date() }
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ]
     }
 
-    const [events, total] = await Promise.all([
-      prisma.event.findMany({
+    const [documents, total] = await Promise.all([
+      prisma.document.findMany({
         where,
         skip: (page - 1) * perPage,
         take: perPage,
-        orderBy: { startDate: "asc" },
+        orderBy: { createdAt: "desc" },
         include: {
-          antennes: {
-            include: { antenne: true }
-          },
-          _count: {
-            select: { registrations: true }
-          }
+          tags: true,
+          antennes: { include: { antenne: true } }
         }
       }),
-      prisma.event.count({ where })
+      prisma.document.count({ where })
     ])
 
     return NextResponse.json({
       success: true,
-      data: events,
+      data: documents,
       pagination: {
         page,
         perPage,
@@ -70,7 +65,7 @@ export async function GET(request: Request) {
       }
     })
   } catch (error) {
-    console.error("GET /api/events error:", error)
+    console.error("GET /api/documents error:", error)
     return NextResponse.json({ success: false, error: "Erreur serveur" }, { status: 500 })
   }
 }
@@ -81,35 +76,28 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const validatedData = eventSchema.parse(body)
+    const validatedData = documentSchema.parse(body)
 
     const slug = validatedData.title
       .toLowerCase()
       .replace(/ /g, "-")
       .replace(/[^\w-]+/g, "") + "-" + Date.now().toString().slice(-4)
 
-    const event = await prisma.event.create({
+    const document = await prisma.document.create({
       data: {
         ...validatedData,
-        description: sanitizeHtml(validatedData.description),
+        isPublished: validatedData.published, // Backward compatibility
         slug,
-        createdById: (session!.user as any).id,
-        isPast: validatedData.startDate < new Date(),
-        antenneIds: undefined, // Remove from spread
-        antennes: validatedData.antenneIds ? {
-          create: validatedData.antenneIds.map(id => ({
-            antenneId: id
-          }))
-        } : undefined
+        createdById: (session!.user as any).id
       }
     })
 
-    return NextResponse.json({ success: true, data: event }, { status: 201 })
+    return NextResponse.json({ success: true, data: document }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: "Données invalides", details: error.errors }, { status: 400 })
     }
-    console.error("POST /api/events error:", error)
+    console.error("POST /api/documents error:", error)
     return NextResponse.json({ success: false, error: "Erreur lors de la création" }, { status: 500 })
   }
 }
@@ -123,33 +111,22 @@ export async function PUT(request: Request) {
     const { id, ...data } = body
     if (!id) return NextResponse.json({ success: false, error: "ID requis" }, { status: 400 })
 
-    const validatedData = eventSchema.partial().parse(data)
+    const validatedData = documentSchema.partial().parse(data)
 
-    // Handle antenne updates separately if provided
-    if (body.antenneIds) {
-      await prisma.eventAntenne.deleteMany({ where: { eventId: id } })
-    }
-
-    const event = await prisma.event.update({
+    const document = await prisma.document.update({
       where: { id },
       data: {
         ...validatedData,
-        description: validatedData.description ? sanitizeHtml(validatedData.description) : undefined,
-        isPast: validatedData.startDate ? validatedData.startDate < new Date() : undefined,
-        antennes: body.antenneIds ? {
-          create: body.antenneIds.map((antenneId: string) => ({
-            antenneId
-          }))
-        } : undefined
+        isPublished: validatedData.published !== undefined ? validatedData.published : undefined
       }
     })
 
-    return NextResponse.json({ success: true, data: event })
+    return NextResponse.json({ success: true, data: document })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: "Données invalides", details: error.errors }, { status: 400 })
     }
-    console.error("PUT /api/events error:", error)
+    console.error("PUT /api/documents error:", error)
     return NextResponse.json({ success: false, error: "Erreur lors de la mise à jour" }, { status: 500 })
   }
 }
@@ -163,10 +140,10 @@ export async function DELETE(request: Request) {
     const id = searchParams.get("id")
     if (!id) return NextResponse.json({ success: false, error: "ID requis" }, { status: 400 })
 
-    await prisma.event.delete({ where: { id } })
-    return NextResponse.json({ success: true, message: "Événement supprimé" })
+    await prisma.document.delete({ where: { id } })
+    return NextResponse.json({ success: true, message: "Document supprimé" })
   } catch (error) {
-    console.error("DELETE /api/events error:", error)
+    console.error("DELETE /api/documents error:", error)
     return NextResponse.json({ success: false, error: "Erreur lors de la suppression" }, { status: 500 })
   }
 }

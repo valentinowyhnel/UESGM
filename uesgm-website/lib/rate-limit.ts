@@ -110,7 +110,7 @@ export class ContactRateLimiter {
 }
 
 /**
- * Basic Rate Limiter (legacy)
+ * Basic Rate Limiter
  */
 export async function rateLimit(options: {
     id: string;
@@ -119,19 +119,13 @@ export async function rateLimit(options: {
 }) {
     const { id, limit, windowMs } = options
     const key = `ratelimit_${id}`
-    const currentUsage = (contactCache.get(key) as { count: number; resetTime: number } | undefined)?.count || 0
+    const record = contactCache.get(key)
+    const currentUsage = record?.count || 0
 
     if (currentUsage >= limit) {
         return false
     }
 
-    const record = { count: currentUsage + 1, resetTime: Date.now() + windowMs }
-    contactCache.set(key, record, { ttl: windowMs })
+    contactCache.set(key, { count: currentUsage + 1, resetTime: Date.now() + windowMs })
     return true
-}
-
-export const SecurityLimits = {
-    LOGIN: { limit: 5, windowMs: 15 * 60 * 1000 },
-    FORMS: { limit: 10, windowMs: 60 * 60 * 1000 },
-    API_GLOBAL: { limit: 100, windowMs: 60 * 60 * 1000 },
 }

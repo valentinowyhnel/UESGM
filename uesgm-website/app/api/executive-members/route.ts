@@ -8,10 +8,11 @@ import { z } from "zod"
 const ExecutiveMemberSchema = z.object({
   name: z.string().min(2).max(100),
   position: z.string().min(2).max(100),
-  email: z.string().email().max(255).optional(),
-  phone: z.string().max(20).optional(),
-  photo: z.string().url().optional(),
+  email: z.string().email().max(255).optional().or(z.literal('')),
+  phone: z.string().max(20).optional().or(z.literal('')),
+  photoUrl: z.string().url().optional().or(z.literal('')),
   order: z.number().int().min(0).default(0),
+  bio: z.string().max(1000).optional().or(z.literal('')),
 })
 
 // GET - Liste des membres du bureau exécutif
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -81,7 +82,7 @@ export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -135,7 +136,7 @@ export async function DELETE(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }

@@ -214,7 +214,7 @@ export async function middleware(request: NextRequest) {
     // Vérifier le rôle pour les routes admin
     if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
       const userRole = (token.role as string) || 'MEMBER'
-      if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
+      if (userRole !== 'MODERATOR' && userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
         const redirectResponse = NextResponse.redirect(new URL('/unauthorized', request.url))
         return addSecurityHeaders(redirectResponse)
       }

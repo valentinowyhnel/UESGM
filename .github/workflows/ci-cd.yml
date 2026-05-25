@@ -1,0 +1,83 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, staging ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: uesgm-website/pnpm-lock.yaml
+      - name: Install dependencies
+        run: cd uesgm-website && pnpm install
+      - name: Run lint
+        run: cd uesgm-website && pnpm lint
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: uesgm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: uesgm-website/pnpm-lock.yaml
+      - name: Install dependencies
+        run: cd uesgm-website && pnpm install
+      - name: Prisma generate
+        run: cd uesgm-website && pnpm prisma generate
+      - name: Run tests
+        run: cd uesgm-website && pnpm test
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/uesgm_test
+
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: uesgm-website/pnpm-lock.yaml
+      - name: Install dependencies
+        run: cd uesgm-website && pnpm install
+      - name: Prisma generate
+        run: cd uesgm-website && pnpm prisma generate
+      - name: Next build
+        run: cd uesgm-website && pnpm build
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/uesgm_test
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}

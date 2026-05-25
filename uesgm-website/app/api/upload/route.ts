@@ -4,30 +4,17 @@ import { v4 as uuidv4 } from 'uuid'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.SUPABASE_URL || ''
+const supabaseKey = process.env.SUPABASE_KEY || ''
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Schéma de validation pour l'upload
 const UploadSchema = z.object({
   type: z.enum(['image', 'document', 'profile', 'executive', 'event', 'project']),
-  category: z.string().optional(),
-  eventId: z.string().optional(),
-  projectId: z.string().optional(),
-  memberId: z.string().optional(),
-})
-
-// Schéma de validation pour la confirmation d'upload
-const UploadConfirmSchema = z.object({
-  fileId: z.string(),
   fileName: z.string(),
-  fileSize: z.number().int().positive(),
-  mimeType: z.string(),
-  type: z.enum(['image', 'document', 'profile', 'executive', 'event', 'project']),
-  category: z.string().optional(),
-  eventId: z.string().optional(),
-  projectId: z.string().optional(),
-  memberId: z.string().optional(),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  contentType: z.string(),
 })
 
 // POST - Demande d'upload (génère une URL signée)
@@ -36,385 +23,86 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
     
-    // Vérifier si la requête est de type multipart/form-data
-    const contentType = req.headers.get('content-type')
-    let uploadData
-    
-    if (contentType && contentType.includes('multipart/form-data')) {
-      // Si c'est un upload de fichier direct
-      const formData = await req.formData()
-      const file = formData.get('file') as File
-      
-      if (!file) {
-        return NextResponse.json(
-          { error: 'Aucun fichier fourni' },
-          { status: 400 }
-        )
-      }
-      
-      // Déterminer le type de fichier basé sur le MIME type
-      let fileType: string
-      if (file.type.startsWith('image/')) {
-        fileType = 'image'
-      } else if (file.type === 'application/pdf' || file.type.includes('document') || file.type.includes('msword')) {
-        fileType = 'document'
-      } else {
-        fileType = 'document' // Par défaut
-      }
-      
-      uploadData = {
-        type: fileType,
-        mimeType: file.type,
-        fileSize: file.size,
-        fileName: file.name,
-      }
-      
-      // Vérifier les permissions pour les types non publics
-      if (!['image', 'document'].includes(fileType)) {
-        if (!session) {
-          return NextResponse.json(
-            { error: 'Authentification requise' },
-            { status: 401 }
-          )
-        }
-        if (session && !userRole) {
-          return NextResponse.json(
-            { error: 'Utilisateur non valide' },
-            { status: 401 }
-          )
-        }
-      }
-    } else {
-      // Si c'est une requête JSON standard
-      const body = await req.json()
-      uploadData = UploadSchema.parse(body)
-      
-      // Vérifier les permissions pour les types non publics
-      if (!['image', 'document'].includes(uploadData.type)) {
-        if (!session) {
-          return NextResponse.json(
-            { error: 'Authentification requise' },
-            { status: 401 }
-          )
-        }
-        if (session && !userRole) {
-          return NextResponse.json(
-            { error: 'Utilisateur non valide' },
-            { status: 401 }
-          )
-        }
-      }
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    // Générer un ID unique pour le fichier
+    const body = await req.json()
+    const { type, fileName, contentType } = UploadSchema.parse(body)
+
     const fileId = uuidv4()
-    const timestamp = Date.now()
-    
-    // Définir le type pour la configuration
-    type FileTypeConfig = {
-      maxSize: number;
-      allowedTypes: string[];
-      folder: string;
-    };
+    const path = `${type}/${fileId}-${fileName}`
 
-    type ConfigType = {
-      [key: string]: FileTypeConfig;
-      image: FileTypeConfig;
-      document: FileTypeConfig;
-      profile: FileTypeConfig;
-      executive: FileTypeConfig;
-      event: FileTypeConfig;
-      project: FileTypeConfig;
-    };
+    const { data, error } = await supabase.storage
+      .from('uesgm-assets')
+      .createSignedUploadUrl(path)
 
-    // Déterminer les limites et types autorisés
-    const config: ConfigType = {
-      image: {
-        maxSize: 5 * 1024 * 1024, // 5MB
-        allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-        folder: 'images',
-      },
-      document: {
-        maxSize: 50 * 1024 * 1024, // 50MB
-        allowedTypes: [
-          'application/pdf', 
-          'application/msword', 
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'application/vnd.ms-excel',
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'application/vnd.ms-powerpoint',
-          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-          'text/plain'
-        ],
-        folder: 'documents',
-      },
-      profile: {
-        maxSize: 2 * 1024 * 1024, // 2MB
-        allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
-        folder: 'profiles',
-      },
-      executive: {
-        maxSize: 2 * 1024 * 1024, // 2MB
-        allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
-        folder: 'executive',
-      },
-      event: {
-        maxSize: 10 * 1024 * 1024, // 10MB
-        allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
-        folder: 'events',
-      },
-      project: {
-        maxSize: 10 * 1024 * 1024, // 10MB
-        allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
-        folder: 'projects',
-      },
-    }
-
-    // Vérifier que le type est valide
-    const fileType = uploadData.type as keyof typeof config;
-    const typeConfig = config[fileType];
-    
-    if (!typeConfig) {
-      return NextResponse.json(
-        { error: 'Type de fichier non supporté' },
-        { status: 400 }
-      )
-    }
-
-    // Générer le nom du fichier
-    const fileExt = (uploadData as any).fileName?.split('.').pop() || 'jpg'
-    const fileName = `${uploadData.type}/${fileId}_${timestamp}.${fileExt}`
-    
-    // Utiliser une URL absolue basée sur l'environnement
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://uesgm.ma'
-    const fileUrl = `${baseUrl}/uploads/${fileName}`
-    
-    // Enregistrer les métadonnées de l'upload en attente
-    const uploadMetadata = {
-      id: fileId,
-      fileName,
-      fileUrl,
-      type: uploadData.type,
-      category: (uploadData as any).category,
-      eventId: (uploadData as any).eventId,
-      projectId: (uploadData as any).projectId,
-      memberId: (uploadData as any).memberId,
-      maxSize: typeConfig.maxSize,
-      allowedTypes: typeConfig.allowedTypes,
-      signedUrl: fileUrl,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 heure
-      uploadedBy: session?.user?.email || 'anonymous',
+    if (error) {
+      console.error('Supabase error:', error)
+      return NextResponse.json({ error: 'Erreur Supabase' }, { status: 500 })
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        fileId,
-        url: fileUrl,
-        fileName,
-        maxSize: typeConfig.maxSize,
-        allowedTypes: typeConfig.allowedTypes,
-        expiresAt: uploadMetadata.expiresAt,
-      },
-      message: 'URL signée générée avec succès'
+        signedUrl: data.signedUrl,
+        path,
+        token: data.token,
+        publicUrl: `${supabaseUrl}/storage/v1/object/public/uesgm-assets/${path}`
+      }
     })
   } catch (error: any) {
     console.error('❌ Erreur POST /api/upload:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Paramètres invalides', details: error.errors },
-        { status: 400 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
-// PUT - Confirmation d'upload (après upload réussi)
+// PUT - Webhook / Callback de confirmation
 export async function PUT(req: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    
-    if (!session || !userRole) {
-      return NextResponse.json(
-        { error: 'Authentification requise' },
-        { status: 401 }
-      )
-    }
+    try {
+      const session = await getServerSession(authOptions)
+      const userRole = (session?.user as any)?.role
+      if (!session || !userRole) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-    const body = await req.json()
-    const confirmData = UploadConfirmSchema.parse(body)
+      const body = await req.json()
+      const { path, type, title, metadata } = body
 
-    // Vérifier que le fichier existe et n'a pas expiré
-    // En production, vérifier avec Supabase Storage ou S3
-    
-    let savedFile = null
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/uesgm-assets/${path}`
 
-    // Traiter selon le type
-    switch (confirmData.type) {
-      case 'document':
-        // Vérifier que l'email de l'utilisateur est défini
-        if (!session.user.email) {
-          return NextResponse.json(
-            { error: 'Email utilisateur manquant' },
-            { status: 400 }
-          )
-        }
-
-        // Créer le document avec les tags
-        savedFile = await prisma.document.create({
-          data: {
-            title: confirmData.title || confirmData.fileName,
-            description: confirmData.description,
-            category: confirmData.category as any || 'ARTICLE',
-            fileUrl: `https://uesgm.ma/uploads/${confirmData.fileName}`,
-            mimeType: confirmData.mimeType,
-            fileSize: confirmData.fileSize,
-            fileName: confirmData.fileName,
-            isPublished: false,
-            createdBy: {
-              connect: { email: session.user.email }
-            },
-            // Initialiser les tags
-            tags: {
-              create: (confirmData.tags || []).map((tag: string) => ({
-                name: tag
-              }))
-            },
-            slug: `${confirmData.fileName.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}-${Date.now()}`
-          }
-        })
-        break
-
-      case 'event':
-        if (confirmData.eventId) {
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://uesgm.ma'
-          await prisma.event.update({
-            where: { id: confirmData.eventId },
-            data: { imageUrl: `${baseUrl}/uploads/${confirmData.fileName}` }
+      let result
+      if (type === 'document') {
+          result = await prisma.document.create({
+              data: {
+                  title: title || 'Nouveau Document',
+                  fileUrl: publicUrl,
+                  fileName: path.split('/').pop() || 'file',
+                  fileSize: metadata?.size || 0,
+                  mimeType: metadata?.mimeType || 'application/octet-stream',
+                  category: metadata?.category || 'ADMINISTRATIF',
+                  slug: (title || 'doc').toLowerCase().replace(/ /g, '-') + '-' + Date.now(),
+                  createdById: (session.user as any).id,
+              }
           })
-        }
-        break
-
-      case 'project':
-        if (confirmData.projectId) {
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://uesgm.ma'
-          await prisma.project.update({
-            where: { id: confirmData.projectId },
-            data: { imageUrl: `${baseUrl}/uploads/${confirmData.fileName}` }
+      } else if (type === 'event') {
+          result = await prisma.event.update({
+              where: { id: metadata.eventId },
+              data: { imageUrl: publicUrl }
           })
-        }
-        break
-
-      case 'executive':
-        if (confirmData.memberId) {
-          await prisma.executiveMember.update({
-            where: { id: confirmData.memberId },
-            data: { photo: `https://uesgm.ma/uploads/${confirmData.fileName}` }
+      } else if (type === 'project') {
+          result = await prisma.project.update({
+              where: { id: metadata.projectId },
+              data: { imageUrl: publicUrl }
           })
-        }
-        break
-
-      case 'profile':
-        // Mettre à jour le profil de l'utilisateur
-        if (session.user.email) {
-          await prisma.user.update({
-            where: { email: session.user.email },
-            data: { image: `https://uesgm.ma/uploads/${confirmData.fileName}` }
+      } else if (type === 'executive') {
+          result = await prisma.executiveMember.update({
+              where: { id: metadata.memberId },
+              data: { photoUrl: publicUrl }
           })
-        }
-        break
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: savedFile,
-      message: 'Fichier uploadé avec succès'
-    })
-  } catch (error: any) {
-    console.error('❌ Erreur PUT /api/upload:', error)
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Paramètres invalides', details: error.errors },
-        { status: 400 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
-  }
-}
-
-// GET - Liste des uploads (admin uniquement)
-export async function GET(req: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-    const userRole = (session?.user as any)?.role
-    
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
-
-    const { searchParams } = new URL(req.url)
-    const type = searchParams.get('type')
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-    const per = Math.min(50, Math.max(1, parseInt(searchParams.get('per') || '10')))
-
-    // Récupérer les documents récemment uploadés
-    const documents = await prisma.document.findMany({
-      where: type ? { category: type as any } : {},
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * per,
-      take: per,
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        mimeType: true,
-        fileSize: true,
-        downloads: true,
-        isPublished: true,
-        fileName: true,
-        fileUrl: true,
-        createdAt: true,
-        createdBy: {
-          select: {
-            name: true,
-            email: true
-          }
-        }
       }
-    })
 
-    const total = await prisma.document.count({
-      where: type ? { category: type as any } : {}
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: documents,
-      pagination: {
-        page,
-        per,
-        total,
-        pages: Math.ceil(total / per),
-        hasNext: page * per < total,
-      }
-    })
-  } catch (error) {
-    console.error('❌ Erreur GET /api/upload:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
-  }
+      return NextResponse.json({ success: true, data: result })
+    } catch (error: any) {
+      console.error('❌ Erreur PUT /api/upload:', error)
+      return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    }
 }

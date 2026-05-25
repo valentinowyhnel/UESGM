@@ -115,7 +115,7 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -187,7 +187,7 @@ export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -274,7 +274,7 @@ export async function DELETE(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }

@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { z } from 'zod'
+
+const StatUpdateSchema = z.object({
+  key: z.string().min(1).max(50),
+  value: z.string().min(1).max(255),
+})
 
 // GET - Statistiques du site
 export async function GET(req: Request) {
@@ -10,178 +16,92 @@ export async function GET(req: Request) {
     const detailed = searchParams.get('detailed') === 'true'
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    const isAdmin = session && userRole && ['ADMIN', 'SUPER_ADMIN'].includes(userRole)
+    const isAdmin = session && userRole && ['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)
 
-    // Statistiques de base (publiques)
-    const baseStats = await prisma.statistics.findFirst({
-      select: {
-        totalMembers: true,
-        totalAntennes: true,
-        totalEvents: true,
-        updatedAt: true,
-      }
-    })
+    // Récupérer les statistiques de la table Statistics
+    const statistics = await prisma.statistics.findMany()
+    const statsMap = statistics.reduce((acc: any, stat) => {
+      acc[stat.key] = stat.value
+      return acc
+    }, {})
 
-    // Comptes en temps réel
-    const [
-      totalEvents,
-      publishedEvents,
-      upcomingEvents,
-      totalProjects,
-      publishedProjects,
-      totalDocuments,
-      publishedDocuments,
-      totalPartners,
-      totalAntennes,
-      totalNewsletterSubscribers,
-      activeNewsletterSubscribers,
-      totalContactMessages,
-      unreadContactMessages,
-    ] = await Promise.all([
-      prisma.event.count(),
+    // Comptes en temps réel (pour l'admin ou si detailed est vrai)
+    const realTimeCounts = detailed ? await Promise.all([
       prisma.event.count({ where: { status: 'PUBLISHED' } }),
-      prisma.event.count({ 
-        where: { 
-          status: 'PUBLISHED',
-          startDate: { gte: new Date() }
-        } 
-      }),
-      prisma.project.count(),
       prisma.project.count({ where: { isPublished: true } }),
-      prisma.document.count(),
       prisma.document.count({ where: { isPublished: true } }),
-      prisma.partner.count(),
-      prisma.antenne.count(),
-      prisma.newsletter.count(),
+      prisma.partner.count({ where: { isActive: true } }),
+      prisma.antenne.count({ where: { isActive: true } }),
       prisma.newsletter.count({ where: { isActive: true } }),
-      prisma.contactMessage.count(),
       prisma.contactMessage.count({ where: { status: 'PENDING' } }),
-    ])
+    ]) : []
 
     const stats: any = {
-      // Statistiques générales
-      overview: {
-        totalEvents,
-        publishedEvents,
-        upcomingEvents,
-        totalProjects,
-        publishedProjects,
-        totalDocuments,
-        publishedDocuments,
-        totalPartners,
-        totalAntennes,
-      },
+      // Statistiques stockées (publiques)
+      ...statsMap,
       
-      // Engagement
-      engagement: {
-        totalNewsletterSubscribers,
-        activeNewsletterSubscribers,
-        totalContactMessages,
-        unreadContactMessages,
-      },
+      // Statistiques temps réel (si demandé)
+      ...(detailed ? {
+        realTime: {
+          publishedEvents: realTimeCounts[0],
+          publishedProjects: realTimeCounts[1],
+          publishedDocuments: realTimeCounts[2],
+          activePartners: realTimeCounts[3],
+          activeAntennes: realTimeCounts[4],
+          activeNewsletterSubscribers: realTimeCounts[5],
+          pendingContactMessages: realTimeCounts[6],
+        }
+      } : {}),
       
-      // Dernière mise à jour
-      lastUpdated: baseStats?.updatedAt || new Date(),
-    }
-
-    // Statistiques détaillées (admin uniquement)
-    if (detailed && isAdmin) {
-      const [
-        eventsByCategory,
-        eventsByMonth,
-        projectsByStatus,
-        documentsByCategory,
-        partnersByType,
-        recentActivity,
-        monthlyGrowth,
-      ] = await Promise.all([
-        // Événements par catégorie (publiés uniquement)
-        prisma.event.groupBy({
-          by: ['category'],
-          where: { status: 'PUBLISHED' },
-          _count: { id: true },
-        }),
-        // Événements par mois (12 derniers mois)
-        prisma.$queryRaw`
-          SELECT 
-            DATE_TRUNC('month', "startDate") as month,
-            COUNT(*) as count
-          FROM "Event"
-          WHERE "status" = 'PUBLISHED'
-            AND "startDate" >= NOW() - INTERVAL '1 year'
-          GROUP BY DATE_TRUNC('month', "startDate")
-          ORDER BY month DESC
-          LIMIT 12
-        `,
-        // Projets par statut
-        prisma.project.groupBy({
-          by: ['status'],
-          where: { isPublished: true },
-          _count: { id: true },
-        }),
-        // Documents par catégorie
-        prisma.document.groupBy({
-          by: ['category'],
-          where: { isPublished: true },
-          _count: { id: true },
-        }),
-        // Partenaires par type
-        prisma.partner.groupBy({
-          by: ['type'],
-          _count: { id: true },
-        }),
-        // Activité récente (30 derniers jours)
-        prisma.contactMessage.findMany({
-          where: {
-            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            subject: true,
-            status: true,
-            createdAt: true,
-          }
-        }),
-        
-        // Croissance mensuelle (6 derniers mois)
-        prisma.contactMessage.groupBy({
-          by: ['createdAt'],
-          where: {
-            createdAt: { gte: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000) }
-          },
-          _count: { id: true },
-        }),
-      ])
-
-      stats.detailed = {
-        breakdowns: {
-          eventsByCategory,
-          projectsByStatus,
-          documentsByCategory,
-          partnersByType,
-        },
-        activity: {
-          recent: recentActivity,
-          monthlyGrowth,
-        },
-      }
+      generatedAt: new Date().toISOString(),
     }
 
     return NextResponse.json({
       success: true,
       data: stats,
-      meta: {
-        isAdmin,
-        detailed,
-        generatedAt: new Date().toISOString(),
-      }
     })
   } catch (error) {
     console.error('❌ Erreur GET /api/statistics:', error)
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST - Mettre à jour une statistique (admin uniquement)
+export async function POST(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    const userRole = (session?.user as any)?.role
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
+    }
+
+    const body = await req.json()
+    const { key, value } = StatUpdateSchema.parse(body)
+
+    const stat = await prisma.statistics.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value },
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: stat,
+    })
+  } catch (error: any) {
+    console.error('❌ Erreur POST /api/statistics:', error)
+    if (error.name === 'ZodError') {
+      return NextResponse.json(
+        { error: 'Données invalides', details: error.errors },
+        { status: 400 }
+      )
+    }
     return NextResponse.json(
       { error: 'Erreur serveur' },
       { status: 500 }

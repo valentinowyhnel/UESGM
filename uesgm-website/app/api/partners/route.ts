@@ -9,7 +9,7 @@ const PartnerSchema = z.object({
   name: z.string().min(2).max(100),
   logo: z.string().url().optional(),
   website: z.string().url().optional(),
-  type: z.enum(['INSTITUTIONAL', 'PRIVATE']),
+  type: z.enum(['INSTITUTIONAL', 'PRIVATE', 'ASSOCIATION']),
   description: z.string().max(1000).optional(),
   order: z.number().int().min(0).default(0),
 })
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -100,7 +100,7 @@ export async function PUT(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -155,7 +155,7 @@ export async function DELETE(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     const userRole = (session?.user as any)?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }

@@ -7,6 +7,7 @@ import type { DefaultSession } from "next-auth"
 
 // Définition locale des rôles utilisateur
 const UserRole = {
+  MODERATOR: 'MODERATOR',
   ADMIN: 'ADMIN',
   SUPER_ADMIN: 'SUPER_ADMIN',
   MEMBER: 'MEMBER'
@@ -182,7 +183,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
     const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -253,7 +254,7 @@ export async function PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
     const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
@@ -325,7 +326,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions) as (DefaultSession & { user: AuthenticatedUser }) | null
     const userRole = session?.user?.role
-    if (!session || !userRole || !['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
+    if (!session || !userRole || !['MODERATOR', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }

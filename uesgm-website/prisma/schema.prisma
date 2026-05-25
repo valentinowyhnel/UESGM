@@ -96,7 +96,7 @@ model ExecutiveMember {
   position  String
   email     String?  @unique
   phone     String?
-  photo     String?
+  photoUrl  String?
   order     Int      @default(0)
   bio       String?
   facebook  String?
@@ -336,6 +336,8 @@ model Document {
   version     Int                @default(1)
   downloads   Int                @default(0)
   isPublished Boolean            @default(false)
+  submittedByEmail String?
+  submittedByName  String?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
@@ -507,13 +509,11 @@ model AuditLog {
 // ============================================
 
 model Statistics {
-  id             String   @id @default(cuid())
-  totalMembers   Int      @default(0)
-  totalAntennes  Int      @default(0)
-  totalEvents    Int      @default(0)
-  totalProjects  Int      @default(0)
-  totalDocuments Int      @default(0)
-  updatedAt      DateTime @updatedAt
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("statistics")
 }
@@ -539,8 +539,10 @@ model MonthlyStats {
 
 enum Role {
   MEMBER
+  MODERATOR
   ADMIN
   SUPER_ADMIN
+  PUBLIC
 }
 
 enum EventStatus {

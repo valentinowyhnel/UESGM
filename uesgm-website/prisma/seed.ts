@@ -49,6 +49,21 @@ async function main() {
   })
   console.log(`✅ President créé: ${presidentUser.email}`)
 
+  // Compte Moderator
+  const moderatorPassword = await bcrypt.hash('Moderator_2025_UESGM!', 12)
+  const moderatorUser = await prisma.user.upsert({
+    where: { email: 'moderator@uesgm.ma' },
+    update: {},
+    create: {
+      email: 'moderator@uesgm.ma',
+      name: 'Modérateur UESGM',
+      password: moderatorPassword,
+      role: 'MODERATOR',
+      emailVerified: new Date()
+    }
+  })
+  console.log(`✅ Moderator créé: ${moderatorUser.email}`)
+
   // ============================================
   // CRÉATION DES MEMBRES DU BUREAU EXÉCUTIF
   // ============================================
@@ -123,18 +138,24 @@ async function main() {
   // CRÉATION DES STATISTIQUES
   // ============================================
   
-  await prisma.statistics.upsert({
-    where: { id: 'global-stats' },
-    update: {},
-    create: {
-      id: 'global-stats',
-      totalMembers: 150,
-      totalAntennes: antennes.length,
-      totalEvents: 0,
-      totalProjects: 0,
-      totalDocuments: 0
-    }
-  })
+  const initialStats = [
+    { key: 'totalMembers', value: '150' },
+    { key: 'totalAntennes', value: antennes.length.toString() },
+    { key: 'totalEvents', value: '1' },
+    { key: 'totalProjects', value: '1' },
+    { key: 'totalDocuments', value: '1' },
+  ]
+
+  for (const stat of initialStats) {
+    await prisma.statistics.upsert({
+      where: { key: stat.key },
+      update: { value: stat.value },
+      create: {
+        key: stat.key,
+        value: stat.value
+      }
+    })
+  }
   console.log(`✅ Statistiques initiales créées`)
 
   // ============================================
@@ -209,6 +230,7 @@ async function main() {
   console.log('\n📋 Comptes administrateur:')
   console.log('   - Admin: admin@uesgm.ma / 7d99755735371a9f891309e336bf8f71 (SUPER_ADMIN)')
   console.log('   - President: president@uesgm.ma / UESGM_President_2025_Secret! (ADMIN)')
+  console.log('   - Moderator: moderator@uesgm.ma / Moderator_2025_UESGM! (MODERATOR)')
 }
 
 main()

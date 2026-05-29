@@ -49,6 +49,22 @@ async function main() {
   })
   console.log(`✅ President créé: ${presidentUser.email}`)
 
+  // Compte Moderateur
+  const moderatorPassword = await bcrypt.hash('MODERATOR_Secret_2025!', 12)
+
+  const moderatorUser = await prisma.user.upsert({
+    where: { email: 'moderator@uesgm.ma' },
+    update: {},
+    create: {
+      email: 'moderator@uesgm.ma',
+      name: 'Modérateur UESGM',
+      password: moderatorPassword,
+      role: 'MODERATOR',
+      emailVerified: new Date()
+    }
+  })
+  console.log(`✅ Moderateur créé: ${moderatorUser.email}`)
+
   // ============================================
   // CRÉATION DES MEMBRES DU BUREAU EXÉCUTIF
   // ============================================

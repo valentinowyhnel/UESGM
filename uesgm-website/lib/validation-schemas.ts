@@ -246,6 +246,42 @@ export const updateUserRoleSchema = z.object({
 })
 
 // ============================================
+// PARTNER SCHEMAS
+// ============================================
+
+export const partnerTypeSchema = z.enum(['INSTITUTIONAL', 'PRIVATE', 'ASSOCIATION'])
+
+export const createPartnerSchema = z.object({
+  name: z.string().min(2).max(100),
+  logo: z.string().url().optional().or(z.literal('')),
+  website: z.string().url().optional().or(z.literal('')),
+  type: partnerTypeSchema,
+  description: z.string().max(1000).optional(),
+  order: z.number().int().min(0).default(0),
+  isActive: z.boolean().default(true),
+})
+
+export const updatePartnerSchema = createPartnerSchema.partial()
+
+// ============================================
+// EXECUTIVE MEMBER SCHEMAS
+// ============================================
+
+export const createExecutiveMemberSchema = z.object({
+  name: z.string().min(2).max(100),
+  position: z.string().min(2).max(100),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().optional(),
+  photo: z.string().url().optional().or(z.literal('')),
+  photoUrl: z.string().url().optional().or(z.literal('')),
+  order: z.number().int().min(0).default(0),
+  bio: z.string().max(1000).optional(),
+  isActive: z.boolean().default(true),
+})
+
+export const updateExecutiveMemberSchema = createExecutiveMemberSchema.partial()
+
+// ============================================
 // NEWSLETTER SCHEMAS
 // ============================================
 

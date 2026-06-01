@@ -1,9 +1,11 @@
-import { UserRole } from "@/types/next-auth"
+import { Role } from "@prisma/client"
 
-const ROLE_HIERARCHY: Record<UserRole, number> = {
-  SUPER_ADMIN: 3,
-  ADMIN: 2,
+export const ROLE_HIERARCHY: Record<Role, number> = {
+  SUPER_ADMIN: 4,
+  ADMIN: 3,
+  MODERATOR: 2,
   MEMBER: 1,
+  PUBLIC: 0,
 }
 
 /**
@@ -13,31 +15,11 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
  * @returns boolean - true si l'utilisateur a la permission, false sinon
  */
 export function hasRequiredRole(
-  userRole: UserRole | undefined,
-  requiredRole: UserRole
+  userRole: Role | undefined,
+  requiredRole: Role
 ): boolean {
-  if (!userRole) return false
-  return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole]
-}
-
-/**
- * Crée une fonction de vérification de rôle pour une utilisation dans les routes API
- * @param requiredRole Le rôle minimum requis
- * @returns Une fonction qui peut être utilisée pour protéger les routes
- * @throws {Error} Si l'utilisateur n'a pas le rôle requis
- */
-export function requireRole(requiredRole: UserRole) {
-  return (session: any) => {
-    if (!session?.user?.role) {
-      throw new Error("Non authentifié")
-    }
-
-    if (!hasRequiredRole(session.user.role, requiredRole)) {
-      throw new Error(`Accès refusé : rôle ${requiredRole} requis`)
-    }
-
-    return true
-  }
+  if (!userRole) return requiredRole === Role.PUBLIC
+  return (ROLE_HIERARCHY[userRole] || 0) >= (ROLE_HIERARCHY[requiredRole] || 0)
 }
 
 /**
@@ -47,8 +29,8 @@ export function requireRole(requiredRole: UserRole) {
  * @returns boolean - true si les rôles correspondent exactement
  */
 export function hasExactRole(
-  userRole: UserRole | undefined,
-  requiredRole: UserRole
+  userRole: Role | undefined,
+  requiredRole: Role
 ): boolean {
   return userRole === requiredRole
 }
@@ -57,8 +39,8 @@ export function hasExactRole(
  * Obtient tous les rôles disponibles
  * @returns Un tableau de tous les rôles disponibles
  */
-export function getAllRoles(): UserRole[] {
-  return Object.keys(ROLE_HIERARCHY) as UserRole[]
+export function getAllRoles(): Role[] {
+  return Object.keys(ROLE_HIERARCHY) as Role[]
 }
 
 /**
@@ -66,6 +48,6 @@ export function getAllRoles(): UserRole[] {
  * @param role Le rôle dont on veut obtenir le niveau
  * @returns Le niveau hiérarchique du rôle
  */
-export function getRoleLevel(role: UserRole): number {
+export function getRoleLevel(role: Role): number {
   return ROLE_HIERARCHY[role] || 0
 }

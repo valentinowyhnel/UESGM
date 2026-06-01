@@ -1,75 +1,51 @@
-/**
- * Validation Schemas
- * 
- * Centralized Zod schemas for API request validation.
- * Provides type-safe validation for all admin API routes.
- */
-
 import { z } from 'zod'
+import { Role, EventStatus, EventCategory, ProjectStatus, ProjectCategory, DocumentCategory, DocumentVisibility, PartnerType } from '@prisma/client'
 
 // ============================================
 // COMMON SCHEMAS
 // ============================================
 
-/**
- * Pagination params schema
- */
 export const paginationSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(10),
   search: z.string().optional(),
 })
 
-/**
- * UUID schema
- */
-export const uuidSchema = z.string().uuid({
-  message: 'ID invalide'
-})
-
-/**
- * Slug schema
- */
 export const slugSchema = z.string()
   .min(3)
   .max(100)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug invalide')
 
 // ============================================
+// EVENT SCHEMAS
+// ============================================
+
+export const createEventSchema = z.object({
+  title: z.string().min(3).max(200),
+  slug: slugSchema.optional(),
+  description: z.string().min(5),
+  location: z.string().min(2).max(200),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime().optional(),
+  category: z.nativeEnum(EventCategory),
+  status: z.nativeEnum(EventStatus).default(EventStatus.DRAFT),
+  imageUrl: z.string().url().optional().or(z.literal('')),
+  maxAttendees: z.number().int().positive().optional(),
+})
+
+export const updateEventSchema = createEventSchema.partial()
+
+// ============================================
 // PROJECT SCHEMAS
 // ============================================
 
-/**
- * Project category enum
- */
-export const projectCategorySchema = z.enum([
-  'EDUCATION',
-  'SOCIAL', 
-  'HEALTH',
-  'DIGITAL',
-  'PARTNERSHIP'
-])
-
-/**
- * Project status enum
- */
-export const projectStatusSchema = z.enum([
-  'PLANNED',
-  'IN_PROGRESS',
-  'COMPLETED',
-  'CANCELLED'
-])
-
-/**
- * Create project schema
- */
 export const createProjectSchema = z.object({
   title: z.string().min(3).max(200),
   slug: slugSchema.optional(),
-  description: z.string().min(5).max(5000),
-  shortDesc: z.string().max(500).optional(),
-  category: projectCategorySchema,
-  status: projectStatusSchema.default('PLANNED'),
+  description: z.string().min(5),
+  shortDesc: z.string().max(500),
+  category: z.nativeEnum(ProjectCategory),
+  status: z.nativeEnum(ProjectStatus).default(ProjectStatus.PLANNED),
   progress: z.number().int().min(0).max(100).default(0),
   imageUrl: z.string().url().optional().or(z.literal('')),
   startDate: z.string().datetime().optional(),
@@ -77,202 +53,70 @@ export const createProjectSchema = z.object({
   isPublished: z.boolean().default(false)
 })
 
-/**
- * Update project schema
- */
-export const updateProjectSchema = createProjectSchema.partial().extend({
-  title: z.string().min(3).max(200).optional()
-})
-
-/**
- * Project filter schema
- */
-export const projectFilterSchema = paginationSchema.extend({
-  status: projectStatusSchema.optional(),
-  category: projectCategorySchema.optional()
-})
-
-// ============================================
-// EVENT SCHEMAS
-// ============================================
-
-/**
- * Event category enum
- */
-export const eventCategorySchema = z.enum([
-  'CULTURAL',
-  'SPORT',
-  'EDUCATIONAL',
-  'SOCIAL',
-  'NETWORKING',
-  'OTHER'
-])
-
-/**
- * Event status enum
- */
-export const eventStatusSchema = z.enum([
-  'DRAFT',
-  'PUBLISHED',
-  'CANCELLED'
-])
-
-/**
- * Create event schema
- */
-export const createEventSchema = z.object({
-  title: z.string().min(3).max(200),
-  slug: slugSchema.optional(),
-  description: z.string().min(5).max(5000),
-  date: z.string().datetime(),
-  endDate: z.string().datetime().optional(),
-  location: z.string().min(2).max(200),
-  category: eventCategorySchema,
-  imageUrl: z.string().url().optional().or(z.literal('')),
-  maxParticipants: z.number().int().positive().optional(),
-  isPublished: z.boolean().default(false)
-})
-
-/**
- * Update event schema
- */
-export const updateEventSchema = createEventSchema.partial()
-
-/**
- * Event filter schema
- */
-export const eventFilterSchema = paginationSchema.extend({
-  status: eventStatusSchema.optional(),
-  category: eventCategorySchema.optional()
-})
+export const updateProjectSchema = createProjectSchema.partial()
 
 // ============================================
 // DOCUMENT SCHEMAS
 // ============================================
 
-/**
- * Document category enum
- */
-export const documentCategorySchema = z.enum([
-  'STATUTS',
-  'RAPPORT',
-  'GUIDE',
-  'LIVRE',
-  'ARTICLE',
-  'ACADEMIQUE',
-  'JURIDIQUE',
-  'ADMINISTRATIF'
-])
-
-/**
- * Document visibility enum
- */
-export const documentVisibilitySchema = z.enum([
-  'PUBLIC',
-  'MEMBERS_ONLY',
-  'ADMIN_ONLY'
-])
-
-/**
- * Create document schema
- */
 export const createDocumentSchema = z.object({
   title: z.string().min(3).max(200),
   slug: slugSchema.optional(),
   description: z.string().max(1000).optional(),
-  category: documentCategorySchema,
-  visibility: documentVisibilitySchema.default('PUBLIC'),
+  category: z.nativeEnum(DocumentCategory),
+  visibility: z.nativeEnum(DocumentVisibility).default(DocumentVisibility.PUBLIC),
   canDownload: z.boolean().default(true),
   fileUrl: z.string().url(),
-  fileName: z.string().optional(),
-  mimeType: z.string().optional(),
-  fileSize: z.number().int().positive().optional(),
-  tags: z.array(z.string()).optional(),
-  published: z.boolean().default(false)
+  fileName: z.string(),
+  fileSize: z.number().int().positive(),
+  mimeType: z.string(),
+  isPublished: z.boolean().default(false)
 })
 
-/**
- * Update document schema
- */
 export const updateDocumentSchema = createDocumentSchema.partial()
 
-/**
- * Document filter schema
- */
-export const documentFilterSchema = paginationSchema.extend({
-  category: documentCategorySchema.optional(),
-  visibility: documentVisibilitySchema.optional()
-})
-
 // ============================================
-// ANTENNA SCHEMAS
+// EXECUTIVE MEMBER SCHEMAS
 // ============================================
 
-/**
- * Create antenna schema
- */
-export const createAntennaSchema = z.object({
-  city: z.string().min(2).max(100),
-  name: z.string().min(2).max(200).optional(),
-  responsable: z.string().min(2).max(100),
+export const createExecutiveMemberSchema = z.object({
+  name: z.string().min(2).max(100),
+  position: z.string().min(2).max(100),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
-  address: z.string().optional()
+  photo: z.string().url().optional().or(z.literal('')),
+  bio: z.string().optional(),
+  order: z.number().int().default(0),
+  facebook: z.string().url().optional().or(z.literal('')),
+  linkedin: z.string().url().optional().or(z.literal('')),
+  isActive: z.boolean().default(true)
 })
 
-/**
- * Update antenna schema
- */
-export const updateAntennaSchema = createAntennaSchema.partial()
+export const updateExecutiveMemberSchema = createExecutiveMemberSchema.partial()
 
 // ============================================
-// USER SCHEMAS
+// PARTNER SCHEMAS
 // ============================================
 
-/**
- * User role enum
- */
-export const userRoleSchema = z.enum([
-  'MEMBER',
-  'ADMIN',
-  'SUPER_ADMIN'
-])
-
-/**
- * Update user role schema
- */
-export const updateUserRoleSchema = z.object({
-  role: userRoleSchema
+export const createPartnerSchema = z.object({
+  name: z.string().min(2).max(100),
+  type: z.nativeEnum(PartnerType),
+  logo: z.string().url().optional().or(z.literal('')),
+  website: z.string().url().optional().or(z.literal('')),
+  description: z.string().optional(),
+  order: z.number().int().default(0),
+  isActive: z.boolean().default(true)
 })
 
+export const updatePartnerSchema = createPartnerSchema.partial()
+
 // ============================================
-// NEWSLETTER SCHEMAS
+// CONTACT SCHEMAS
 // ============================================
 
-/**
- * Send newsletter schema
- */
-export const sendNewsletterSchema = z.object({
-  subject: z.string().min(5).max(200),
-  content: z.string().min(20),
-  recipientEmails: z.array(z.string().email()).optional(),
-  segment: z.enum(['all', 'members', 'admins']).default('all')
+export const createContactMessageSchema = z.object({
+  name: z.string().min(2).max(100),
+  email: z.string().email(),
+  subject: z.string().min(5).max(200).optional(),
+  message: z.string().min(10).max(2000),
 })
-
-// ============================================
-// TYPE EXPORTS
-// ============================================
-
-export type PaginationParams = z.infer<typeof paginationSchema>
-export type CreateProject = z.infer<typeof createProjectSchema>
-export type UpdateProject = z.infer<typeof updateProjectSchema>
-export type ProjectFilter = z.infer<typeof projectFilterSchema>
-export type CreateEvent = z.infer<typeof createEventSchema>
-export type UpdateEvent = z.infer<typeof updateEventSchema>
-export type EventFilter = z.infer<typeof eventFilterSchema>
-export type CreateDocument = z.infer<typeof createDocumentSchema>
-export type UpdateDocument = z.infer<typeof updateDocumentSchema>
-export type DocumentFilter = z.infer<typeof documentFilterSchema>
-export type CreateAntenna = z.infer<typeof createAntennaSchema>
-export type UpdateAntenna = z.infer<typeof updateAntennaSchema>
-export type SendNewsletter = z.infer<typeof sendNewsletterSchema>

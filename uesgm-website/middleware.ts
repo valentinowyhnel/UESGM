@@ -71,6 +71,7 @@ const sensitiveRoutes: Record<string, { limit: number; windowMs: number }> = {
   '/api/contact': { limit: 5, windowMs: 15 * 60 * 1000 },
   '/api/auth': { limit: 10, windowMs: 15 * 60 * 1000 },
   '/api/upload': { limit: 20, windowMs: 60 * 60 * 1000 },
+  '/api/contact-v2': { limit: 5, windowMs: 15 * 60 * 1000 },
 }
 
 // Routes publiques pour rate limiting

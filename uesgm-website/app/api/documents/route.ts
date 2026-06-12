@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { createProjectSchema } from "@/lib/validation-schemas"
+import { createDocumentSchema } from "@/lib/validation-schemas"
 import { requireRole } from "@/lib/auth/requireRole"
 import { Role } from "@prisma/client"
 
@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1")
     const limit = parseInt(searchParams.get("limit") || "10")
     const category = searchParams.get("category")
+    const search = searchParams.get("search")
 
     const where: any = {
       isPublished: true
@@ -19,18 +20,25 @@ export async function GET(req: NextRequest) {
       where.category = category
     }
 
-    const [projects, total] = await Promise.all([
-      prisma.project.findMany({
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } }
+      ]
+    }
+
+    const [documents, total] = await Promise.all([
+      prisma.document.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: "desc" }
       }),
-      prisma.project.count({ where })
+      prisma.document.count({ where })
     ])
 
     return NextResponse.json({
-      projects,
+      documents,
       pagination: {
         total,
         pages: Math.ceil(total / limit),
@@ -49,9 +57,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const validatedData = createProjectSchema.parse(body)
+    const validatedData = createDocumentSchema.parse(body)
 
-    const project = await prisma.project.create({
+    const document = await prisma.document.create({
       data: {
         ...validatedData,
         slug: validatedData.slug || validatedData.title.toLowerCase().replace(/ /g, "-").replace(/[^\w-]+/g, ""),
@@ -59,7 +67,7 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    return NextResponse.json(project, { status: 201 })
+    return NextResponse.json(document, { status: 201 })
   } catch (error: any) {
     if (error.name === "ZodError") {
       return NextResponse.json({ error: error.errors }, { status: 400 })

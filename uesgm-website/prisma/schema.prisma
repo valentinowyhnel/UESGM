@@ -538,9 +538,11 @@ model MonthlyStats {
 // ============================================
 
 enum Role {
-  MEMBER
-  ADMIN
   SUPER_ADMIN
+  ADMIN
+  MODERATOR
+  MEMBER
+  PUBLIC
 }
 
 enum EventStatus {

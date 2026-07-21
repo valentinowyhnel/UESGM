@@ -13,41 +13,45 @@ jest.mock('next-auth/next', () => ({
   }))
 }))
 
-// Mock Prisma pour les tests
-jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn(() => ({
-    event: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      deleteMany: jest.fn(),
-      count: jest.fn(),
-      upsert: jest.fn()
-    },
-    user: {
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn()
-    },
-    project: {
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn()
-    },
-    document: {
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn()
-    },
-    $queryRaw: jest.fn(),
-    $disconnect: jest.fn()
-  }))
-}))
+// Mock Prisma pour les tests en préservant les enums réels
+jest.mock('@prisma/client', () => {
+  const actual = jest.requireActual('@prisma/client')
+  return {
+    ...actual,
+    PrismaClient: jest.fn(() => ({
+      event: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        deleteMany: jest.fn(),
+        count: jest.fn(),
+        upsert: jest.fn()
+      },
+      user: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn()
+      },
+      project: {
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn()
+      },
+      document: {
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn()
+      },
+      $queryRaw: jest.fn(),
+      $disconnect: jest.fn()
+    }))
+  }
+})
 
 // Mock revalidatePath
 jest.mock('next/cache', () => ({
